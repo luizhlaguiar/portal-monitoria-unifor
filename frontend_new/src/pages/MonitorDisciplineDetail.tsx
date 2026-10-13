@@ -88,7 +88,14 @@ const MonitorDisciplineDetail: React.FC = () => {
     fetchConversations();
   }, [id]);
 
-  const handleAddSchedule = async () => {
+  const handleAddSchedule = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    if (!newSchedule.dayOfWeek || !newSchedule.startTime || !newSchedule.endTime || !newSchedule.room.trim()) {
+      alert('Por favor, preencha todos os campos: dia da semana, horário de início, término e local.');
+      return;
+    }
+
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const sessionRes = await api.get(`/disciplines/${id}/session/${user.id}`);
@@ -116,7 +123,8 @@ const MonitorDisciplineDetail: React.FC = () => {
     }
   };
 
-  const handleAddActivity = async () => {
+  const handleAddActivity = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     try {
       const activityData = {
         ...newActivity,
@@ -170,7 +178,6 @@ const MonitorDisciplineDetail: React.FC = () => {
       </Card>
 
       <Tabs defaultActiveKey="monitores" id="monitor-discipline-tabs" className="mb-4 custom-tabs">
-
         <Tab eventKey="monitores" title="Monitores">
           <div className="p-4 bg-white border rounded shadow-sm">
             <Row className="g-4">
@@ -218,6 +225,7 @@ const MonitorDisciplineDetail: React.FC = () => {
                     </td>
                   </tr>
                 ))}
+                {schedule.length === 0 && <tr><td colSpan={4} className="text-center py-3 text-muted">Nenhum horário cadastrado.</td></tr>}
               </tbody>
             </Table>
           </div>
@@ -244,6 +252,7 @@ const MonitorDisciplineDetail: React.FC = () => {
                   </Card>
                 </Col>
               ))}
+              {activities.length === 0 && <Col className="text-center w-100"><p className="text-muted">Nenhuma atividade de fixação disponível.</p></Col>}
             </Row>
           </div>
         </Tab>
@@ -276,7 +285,7 @@ const MonitorDisciplineDetail: React.FC = () => {
           <Modal.Title className="fw-bold">Novo Horário de Monitoria</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form>
+          <Form id="schedule-form" onSubmit={handleAddSchedule}>
             <Form.Group className="mb-3">
               <Form.Label className="small fw-bold">Dia da Semana</Form.Label>
               <Form.Select
@@ -327,7 +336,7 @@ const MonitorDisciplineDetail: React.FC = () => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowScheduleModal(false)}>Cancelar</Button>
-          <Button variant="dark" onClick={handleAddSchedule}>Salvar Horário</Button>
+          <Button type="submit" form="schedule-form" variant="dark">Salvar Horário</Button>
         </Modal.Footer>
       </Modal>
 
@@ -337,7 +346,7 @@ const MonitorDisciplineDetail: React.FC = () => {
           <Modal.Title className="fw-bold">Nova Atividade de Fixação</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form>
+          <Form id="activity-form" onSubmit={handleAddActivity}>
             <Form.Group className="mb-3">
               <Form.Label className="small fw-bold">Título da Atividade</Form.Label>
               <Form.Control
@@ -379,7 +388,7 @@ const MonitorDisciplineDetail: React.FC = () => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowActivityModal(false)}>Cancelar</Button>
-          <Button variant="dark" onClick={handleAddActivity}>Salvar Atividade</Button>
+          <Button type="submit" form="activity-form" variant="dark">Salvar Atividade</Button>
         </Modal.Footer>
       </Modal>
     </Container>

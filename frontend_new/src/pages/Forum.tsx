@@ -421,7 +421,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
             })()}
           </div>
 
-          <Form className="d-flex gap-2">
+          <Form className="d-flex gap-2" onSubmit={(e) => { e.preventDefault(); handlePostReply(); }}>
             <Form.Control
               placeholder={replyingToResponseId ? `Respondendo à resposta...` : "Escreva sua resposta..."}
               value={novaResposta}
