@@ -63,6 +63,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
     setRespostas(duvida?.respostas || []);
   };
 
+  // POST: Enviar resposta e atualizar o estado local instantaneamente
   const handlePostReply = async () => {
     if (!selectedDuvida || !novaResposta.trim() || isPosting) return;
     try {
@@ -77,13 +78,15 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
       setNovaResposta('');
       setReplyingToResponseId(null);
 
-      // Sincronização Limpa: Busca a dúvida atualizada e substitui a lista de respostas
+      // Sincronização limpa e automática do backend
       const res = await api.get(`/forum/${disciplineId}`);
+      setDuvidas(res.data);
       const updatedDuvida = res.data.find((d: any) => d.id === selectedDuvida.id);
       if (updatedDuvida) {
         setSelectedDuvida(updatedDuvida);
         setRespostas(updatedDuvida.respostas || []);
       }
+
     } catch (error) {
       alert('Erro ao enviar resposta');
     } finally {
@@ -91,6 +94,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
     }
   };
 
+  // POST: Criar dúvida e atualizar a lista instantaneamente
   const handleCreateDuvida = async () => {
     if (!novaDuvida.titulo.trim() || !novaDuvida.descricao.trim()) {
       alert('Por favor, preencha título e descrição.');
@@ -104,9 +108,12 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
         titulo: novaDuvida.titulo,
         descricao: novaDuvida.descricao
       });
+      
       setNovaDuvida({ titulo: '', descricao: '' });
       setShowNewDuvidaModal(false);
-      fetchDuvidas();
+      
+      // Busca imediatamente os dados atualizados do backend para exibir na tela na hora
+      await fetchDuvidas();
     } catch (error) {
       alert('Erro ao criar dúvida.');
     }
@@ -125,21 +132,25 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
         descricao: editingDuvida.descricao
       });
       setShowEditDuvidaModal(false);
-      fetchDuvidas();
-      setSelectedDuvida({ ...selectedDuvida, titulo: editingDuvida.titulo, descricao: editingDuvida.descricao });
+      
+      // Atualiza estado local da dúvida editada
+      setDuvidas(prev => prev.map(d => d.id === selectedDuvida.id ? { ...d, titulo: editingDuvida.titulo, descricao: editingDuvida.descricao } : d));
+      setSelectedDuvida(prev => prev ? { ...prev, titulo: editingDuvida.titulo, descricao: editingDuvida.descricao } : null);
     } catch (error) {
       alert('Erro ao editar dúvida.');
     }
   };
 
+  // DELETE: Excluir dúvida e remover do estado local imediatamente
   const handleDeleteDuvida = async () => {
     if (!selectedDuvida) return;
     if (!window.confirm('Tem certeza que deseja excluir esta pergunta?')) return;
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       await api.delete(`/forum/duvida/${selectedDuvida.id}`, { data: { usuarioId: user.id } });
+      
+      setDuvidas(prev => prev.filter(d => d.id !== selectedDuvida.id));
       setSelectedDuvida(null);
-      fetchDuvidas();
     } catch (error) {
       alert('Erro ao excluir dúvida.');
     }
@@ -161,15 +172,20 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
     }
   };
 
+  // DELETE: Excluir resposta e atualizar a tela na hora sem precisar de F5
   const handleDeleteResposta = async (id: number) => {
     if (!window.confirm('Tem certeza que deseja excluir esta resposta?')) return;
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      // 1. Apaga no backend (que já sabemos que está funcionando perfeitamente)
       await api.delete(`/forum/resposta/${id}`, { data: { usuarioId: user.id } });
 
-      // Sincronização completa para atualizar a árvore de respostas
+      // 2. Busca imediatamente os dados atualizados do backend para atualizar a tela na hora
+      const res = await api.get(`/forum/${disciplineId}`);
+      setDuvidas(res.data);
+      
       if (selectedDuvida) {
-        const res = await api.get(`/forum/${disciplineId}`);
         const updatedDuvida = res.data.find((d: any) => d.id === selectedDuvida.id);
         if (updatedDuvida) {
           setSelectedDuvida(updatedDuvida);
@@ -177,6 +193,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
         }
       }
     } catch (error) {
+      console.error("Erro ao excluir resposta:", error);
       alert('Erro ao excluir resposta.');
     }
   };
@@ -186,6 +203,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
     try {
       await api.patch(`/forum/duvida/${selectedDuvida.id}/status`, { status });
       setSelectedDuvida({ ...selectedDuvida, status: status as any });
+      setDuvidas(prev => prev.map(d => d.id === selectedDuvida.id ? { ...d, status: status as any } : d));
     } catch (error) {
       alert('Erro ao atualizar status');
     }
@@ -405,7 +423,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
 
           <Form className="d-flex gap-2">
             <Form.Control
-              placeholder={replyingToResponseId ? `Respondendo à resposta ${replyingToResponseId}...` : "Escreva sua resposta..."}
+              placeholder={replyingToResponseId ? `Respondendo à resposta...` : "Escreva sua resposta..."}
               value={novaResposta}
               onChange={e => setNovaResposta(e.target.value)}
             />
