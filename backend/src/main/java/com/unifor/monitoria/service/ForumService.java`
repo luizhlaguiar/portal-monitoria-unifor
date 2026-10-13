@@ -1,0 +1,72 @@
+package com.unifor.monitoria.service;
+
+import com.unifor.monitoria.model.*;
+import com.unifor.monitoria.repository.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+public class ForumService {
+
+    @Autowired
+    private DuvidaRepository duvidaRepository;
+
+    @Autowired
+    private RespostaDuvidaRepository respostaRepository;
+
+    @Autowired
+    private MatriculaRepository matriculaRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private DisciplineRepository disciplineRepository;
+
+    public List<Duvida> listarDuvidasPorDisciplina(Long disciplinaId) {
+        return duvidaRepository.findByDisciplinaId(disciplinaId);
+    }
+
+    @Transactional
+    public Duvida criarDuvida(Long alunoId, Long disciplinaId, String titulo, String descricao) {
+        System.out.println("DEBUG FORUM - Aluno ID: " + alunoId + " | Disciplina ID: " + disciplinaId);
+        boolean matriculado = matriculaRepository.existsByAlunoIdAndDisciplinaId(alunoId, disciplinaId);
+        System.out.println("DEBUG FORUM - Matriculado? " + matriculado);
+
+        if (!matriculado) {
+            throw new RuntimeException("O aluno deve estar matriculado na disciplina para postar no fórum.");
+        }
+
+        Duvida duvida = new Duvida();
+        duvida.setAluno(userRepository.findById(alunoId).orElseThrow());
+        duvida.setDisciplina(disciplineRepository.findById(disciplinaId).orElseThrow());
+        duvida.setTitulo(titulo);
+        duvida.setDescricao(descricao);
+
+        return duvidaRepository.save(duvida);
+    }
+
+    @Transactional
+    public RespostaDuvida responderDuvida(Long duvidaId, Long usuarioId, String conteudo) {
+        Duvida duvida = duvidaRepository.findById(duvidaId).orElseThrow();
+
+        RespostaDuvida resposta = new RespostaDuvida();
+        resposta.setDuvida(duvida);
+        resposta.setUsuario(userRepository.findById(usuarioId).orElseThrow());
+        resposta.setConteudo(conteudo);
+
+        return respostaRepository.save(resposta);
+    }
+
+    @Transactional
+    public Duvida atualizarStatusDuvida(Long duvidaId, String statusStr) {
+        Duvida duvida = duvidaRepository.findById(duvidaId).orElseThrow();
+        // Convertendo a string para o Enum Status da classe Duvida
+        Duvida.Status status = Duvida.Status.valueOf(statusStr.toUpperCase());
+        duvida.setStatus(status);
+        return duvidaRepository.save(duvida);
+    }
+}

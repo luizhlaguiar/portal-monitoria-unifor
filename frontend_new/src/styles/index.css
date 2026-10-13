@@ -1,0 +1,51 @@
+:root {
+  /* Palette UNIFOR */
+  --unifor-blue-dark: #003366;
+  --unifor-blue-primary: #004a99;
+  --unifor-yellow-gold: #ffcc00;
+  --unifor-white: #ffffff;
+  --unifor-gray-light: #f8f9fa;
+  --unifor-gray-medium: #e9ecef;
+  --unifor-gray-dark: #6c757d;
+  --unifor-text-dark: #212529;
+  --unifor-text-muted: #495057;
+
+  /* Design Tokens */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+  --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--unifor-gray-light);
+  color: var(--unifor-text-dark);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: var(--transition-fast);
+}
+
+input {
+  font-family: inherit;
+}

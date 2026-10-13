@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Portal Monitoria UNIFOR</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        body {
+            display: block;
+            background-color: var(--bg-soft);
+        }
+        .navbar {
+            background-color: var(--primary-blue);
+            color: var(--white);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .navbar h1 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .btn-logout {
+            background-color: var(--accent-yellow);
+            color: var(--primary-blue);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: var(--transition);
+        }
+        .btn-logout:hover {
+            background-color: var(--accent-yellow-light);
+        }
+        .main-content {
+            padding: 40px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .welcome-section {
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        .welcome-section h2 {
+            color: var(--primary-blue);
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        .welcome-section p {
+            color: var(--text-muted);
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+        }
+        .course-card {
+            background: var(--white);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            cursor: pointer;
+            border-left: 8px solid var(--accent-yellow);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .course-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+        }
+        .course-card h3 {
+            color: var(--primary-blue);
+            margin-bottom: 10px;
+            font-size: 1.3rem;
+        }
+        .course-card p {
+            color: var(--text-muted);
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .btn-view {
+            text-align: right;
+            color: var(--primary-blue);
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: var(--transition);
+        }
+        .btn-view:hover {
+            color: var(--accent-yellow);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <h1>Portal Monitoria UNIFOR</h1>
+        <div class="user-info">
+            <span id="userName">Carregando...</span>
+            <button class="btn-logout" onclick="logout()">Sair</button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <section class="welcome-section">
+            <h2 id="welcomeMsg">Olá, Bem-vindo!</h2>
+            <p>Aqui estão as suas disciplinas e as monitorias disponíveis.</p>
+        </section>
+
+        <div class="dashboard-grid" id="courseGrid">
+            <!-- Os cards de disciplinas entrarão aqui via JS -->
+            <div class="course-card">
+                <h3>Carregando disciplinas...</h3>
+                <p>Aguarde um momento.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function loadUser() {
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (!user) {
+                window.location.href = '../index.html';
+            } else {
+                document.getElementById('userName').innerText = user.nome;
+                document.getElementById('welcomeMsg').innerText = 'Olá, ' + user.nome + '!';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('user');
+            window.location.href = '../index.html';
+        }
+
+        // Simulação de carga de disciplinas (em breve conectaremos com o backend)
+        async function loadCourses() {
+            const grid = document.getElementById('courseGrid');
+            try {
+                // Simulando dados enquanto não criamos o Controller de Courses no Java
+                const courses = [
+                    { code: 'DCC101', name: 'Algoritmos e Estruturas de Dados', dept: 'Computação', desc: 'Estudo de listas, pilhas, filas e árvores.' },
+                    { code: 'DCC202', name: 'Engenharia de Software', dept: 'Sistemas', desc: 'Ciclos de vida de software e metodolog same.' },
+                    { code: 'DCC303', name: 'Banco de Dados', dept: 'Informática', desc: 'Modelagem relacional e SQL avançado.' },
+                    { code: 'DCC404', name: 'Redes de Computadores', dept: 'Infraestrutura', desc: 'Protocolos TCP/IP e roteamento.' },
+                ];
+
+                grid.innerHTML = '';
+                courses.forEach(course => {
+                    grid.innerHTML += `
+                        <div class="course-card">
+                            <div>
+                                <h3>${course.name}</h3>
+                                <p><strong>Código:</strong> ${course.code} <br>
+                                   <strong>Departamento:</strong> ${course.dept}<br>
+                                   ${course.desc}</p>
+                            </div>
+                            <a href="discipline.html?code=${course.code}" class="btn-view">Ver Monitores $\rightarrow$</a>
+                        </div>
+                    `;
+                });
+            } catch (e) {
+                grid.innerHTML = '<p>Erro ao carregar disciplinas.</p>';
+            }
+        }
+
+        window.onload = () => {
+            loadUser();
+            loadCourses();
+        };
+    </script>
+</body>
+</html>
