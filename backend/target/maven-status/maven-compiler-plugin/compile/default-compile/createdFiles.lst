@@ -18,14 +18,17 @@ com\unifor\monitoria\controller\ScheduleController.class
 com\unifor\monitoria\config\CorsFilter.class
 com\unifor\monitoria\controller\ChatController.class
 com\unifor\monitoria\model\Duvida.class
+com\unifor\monitoria\config\RedisConfig.class
 com\unifor\monitoria\controller\ActivityController.class
 com\unifor\monitoria\model\ChatMessage.class
 com\unifor\monitoria\model\Message.class
 com\unifor\monitoria\repository\MatriculaRepository.class
 com\unifor\monitoria\controller\ForumController.class
+com\unifor\monitoria\model\dto\DuvidaDTO.class
 com\unifor\monitoria\repository\MessageRepository.class
 com\unifor\monitoria\model\Duvida$Status.class
 com\unifor\monitoria\model\Matricula.class
+com\unifor\monitoria\model\RespostaDuvidaDTO.class
 com\unifor\monitoria\service\ChatService.class
 com\unifor\monitoria\repository\MonitoringSessionRepository.class
 com\unifor\monitoria\model\Activity.class
@@ -35,6 +38,7 @@ com\unifor\monitoria\model\User$Role.class
 com\unifor\monitoria\repository\ScheduleRepository.class
 com\unifor\monitoria\controller\ChatRestController.class
 com\unifor\monitoria\service\ForumService.class
+com\unifor\monitoria\model\DuvidaDTO.class
 com\unifor\monitoria\repository\RespostaDuvidaRepository.class
 com\unifor\monitoria\model\Conversation.class
 com\unifor\monitoria\model\MonitoringSession.class

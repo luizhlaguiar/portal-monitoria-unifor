@@ -9,7 +9,9 @@ interface Duvida {
   descricao: string;
   status: 'PENDENTE' | 'EM_ANALISE' | 'RESOLVIDA';
   dataCriacao: string;
-  aluno: { id: number; nome: string };
+  alunoNome: string;
+  alunoId: number;
+  aluno?: { id: number; nome: string };
   respostas: any[];
 }
 
@@ -17,9 +19,11 @@ interface Resposta {
   id: number;
   conteudo: string;
   dataResposta: string;
-  usuario: { id: number; nome: string };
+  usuarioNome: string;
+  usuarioId: number;
+  usuario?: { id: number; nome: string };
   respostaPaiId?: number;
-  respostasFilhas?: Resposta[];
+  children?: Resposta[];
 }
 
 const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
@@ -44,7 +48,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
       if (res.data && Array.isArray(res.data)) {
         setDuvidas(res.data);
       } else {
-        setDuvidas([]);
+        setDuvidas(res.data || []);
       }
     } catch (error) {
       console.error('[Forum] Erro na requisição:', error);
@@ -60,7 +64,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
 
   const handleOpenTopic = (duvida: Duvida) => {
     setSelectedDuvida(duvida);
-    setRespostas(duvida?.respostas || []);
+    setRespostas(duvida.respostas || []);
   };
 
   // POST: Enviar resposta e atualizar o estado local instantaneamente
@@ -396,7 +400,19 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
                 })()}
               </div>
             </div>
-            <p className="mb-0">{selectedDuvida?.descricao || 'Sem descrição'}</p>
+            <p className="mb-3">{selectedDuvida?.descricao || 'Sem descrição'}</p>
+            <Button
+              variant="link"
+              size="sm"
+              className="p-0 text-decoration-none small fw-bold text-primary"
+              onClick={() => {
+                setReplyingToResponseId(null);
+                setNovaResposta('');
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+              }}
+            >
+              Responder a esta pergunta
+            </Button>
           </div>
 
           <h6 className="fw-bold mb-3">Respostas</h6>

@@ -4,6 +4,7 @@ import com.unifor.monitoria.model.*;
 import com.unifor.monitoria.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -19,6 +20,31 @@ public class ChatService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Async
+    public void saveMessageAsync(ChatMessage chatMessage) {
+        try {
+            User sender = userRepository.findById(chatMessage.getSenderId())
+                    .orElseThrow(() -> new RuntimeException("Sender not found"));
+            User receiver = userRepository.findById(chatMessage.getReceiverId())
+                    .orElseThrow(() -> new RuntimeException("Receiver not found"));
+
+            Conversation conversation = getOrCreateConversation(sender, receiver);
+
+            Message message = new Message();
+            message.setConversation(conversation);
+            message.setSender(sender);
+            message.setReceiver(receiver);
+            message.setContent(chatMessage.getContent());
+            message.setTimestamp(LocalDateTime.now());
+            message.setRead(false);
+
+            messageRepository.save(message);
+            System.out.println(">>> [ASYNC] Mensagem salva no banco em background: " + chatMessage.getContent());
+        } catch (Exception e) {
+            System.err.println(">>> [ASYNC] Erro ao salvar mensagem: " + e.getMessage());
+        }
+    }
 
     public Message saveMessage(ChatMessage chatMessage) {
         User sender = userRepository.findById(chatMessage.getSenderId())

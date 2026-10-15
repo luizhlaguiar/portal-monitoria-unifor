@@ -17,7 +17,7 @@ public class ForumController {
     private ForumService forumService;
 
     @GetMapping("/{disciplinaId}")
-    public ResponseEntity<List<Duvida>> listar(@PathVariable Integer disciplinaId) {
+    public ResponseEntity<List<DuvidaDTO>> listar(@PathVariable Integer disciplinaId) {
         return ResponseEntity.ok(forumService.listarDuvidasPorDisciplina(disciplinaId));
     }
 

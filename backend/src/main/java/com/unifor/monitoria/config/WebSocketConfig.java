@@ -10,6 +10,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
+        // Mantemos o SimpleBroker para as filas locais, mas a distribuição
+        // global agora será gerenciada via Redis no ChatService/Controller
         config.enableSimpleBroker("/topic", "/queue");
         config.setApplicationDestinationPrefixes("/app");
         config.setUserDestinationPrefix("/user");
