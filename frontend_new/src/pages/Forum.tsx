@@ -23,8 +23,103 @@ interface Resposta {
   usuarioId: number;
   usuario?: { id: number; nome: string };
   respostaPaiId?: number;
-  children?: Resposta[];
+  respostasFilhas?: Resposta[];
 }
+
+// COMPONENTE MOVIDO PARA FORA DO FORUM PARA EVITAR PERDA DE FOCO NO INPUT
+const RenderResposta: React.FC<{
+  resposta: Resposta,
+  depth: number,
+  editingRespostaId: number | null,
+  editingRespostaText: string,
+  setEditingRespostaId: (id: number | null) => void,
+  setEditingRespostaText: (text: string) => void,
+  handleDeleteResposta: (id: number) => void,
+  handleEditResposta: () => void,
+  setReplyingToResponseId: (id: number | null) => void,
+  setNovaResposta: (text: string) => void
+}> = ({
+  resposta,
+  depth,
+  editingRespostaId,
+  editingRespostaText,
+  setEditingRespostaId,
+  setEditingRespostaText,
+  handleDeleteResposta,
+  handleEditResposta,
+  setReplyingToResponseId,
+  setNovaResposta
+}) => {
+  return (
+    <div style={{ marginLeft: depth > 0 ? '2rem' : '0' }} className="mb-3">
+      <Card className="border-0 shadow-sm p-3 bg-light">
+        <div className="d-flex justify-content-between mb-1">
+          <small className="fw-bold">{resposta?.usuarioNome || 'Usuário'}</small>
+          <div className="d-flex gap-2 align-items-center">
+            {(() => {
+              const userStr = localStorage.getItem('user');
+              if (!userStr) return null;
+              const user = JSON.parse(userStr);
+              const isAuthor = Number(resposta?.usuarioId) === Number(user.id);
+
+              return isAuthor ? (
+                <>
+                  <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => {
+                    setEditingRespostaId(resposta.id);
+                    setEditingRespostaText(resposta.conteudo);
+                  }}>Editar</Button>
+                  <Button variant="link" size="sm" className="p-0 text-decoration-none text-danger" onClick={() => handleDeleteResposta(resposta.id)}>Excluir</Button>
+                </>
+              ) : null;
+            })()}
+            <small className="text-muted" style={{ fontSize: '0.7rem' }}>{resposta?.dataResposta ? new Date(resposta.dataResposta).toLocaleString() : ''}</small>
+          </div>
+        </div>
+
+        {editingRespostaId === resposta.id ? (
+          <div className="d-flex gap-2 mt-2">
+            <Form.Control
+              size="sm"
+              autoFocus
+              value={editingRespostaText}
+              onChange={e => setEditingRespostaText(e.target.value)}
+            />
+            <Button size="sm" variant="dark" onClick={handleEditResposta}>Salvar</Button>
+            <Button size="sm" variant="secondary" onClick={() => setEditingRespostaId(null)}>Cancelar</Button>
+          </div>
+        ) : (
+          <p className="small mb-2">{resposta?.conteudo}</p>
+        )}
+
+        <Button variant="link" size="sm" className="p-0 text-decoration-none small fw-bold" onClick={() => {
+          setReplyingToResponseId(resposta.id);
+          setNovaResposta('');
+          window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }}>Responder</Button>
+
+        {resposta.respostasFilhas && resposta.respostasFilhas.length > 0 && (
+          <div className="mt-3 border-start ps-3">
+            {resposta.respostasFilhas.map((filha) => (
+              <RenderResposta
+                key={filha.id}
+                resposta={filha}
+                depth={depth + 1}
+                editingRespostaId={editingRespostaId}
+                editingRespostaText={editingRespostaText}
+                setEditingRespostaId={setEditingRespostaId}
+                setEditingRespostaText={setEditingRespostaText}
+                handleDeleteResposta={handleDeleteResposta}
+                handleEditResposta={handleEditResposta}
+                setReplyingToResponseId={setReplyingToResponseId}
+                setNovaResposta={setNovaResposta}
+              />
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+};
 
 const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
   const [duvidas, setDuvidas] = useState<Duvida[]>([]);
@@ -67,7 +162,6 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
     setRespostas(duvida.respostas || []);
   };
 
-  // POST: Enviar resposta e atualizar o estado local instantaneamente
   const handlePostReply = async () => {
     if (!selectedDuvida || !novaResposta.trim() || isPosting) return;
     try {
@@ -82,7 +176,6 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
       setNovaResposta('');
       setReplyingToResponseId(null);
 
-      // Sincronização limpa e automática do backend
       const res = await api.get(`/forum/${disciplineId}`);
       setDuvidas(res.data);
       const updatedDuvida = res.data.find((d: any) => d.id === selectedDuvida.id);
@@ -98,7 +191,6 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
     }
   };
 
-  // POST: Criar dúvida e atualizar a lista instantaneamente
   const handleCreateDuvida = async () => {
     if (!novaDuvida.titulo.trim() || !novaDuvida.descricao.trim()) {
       alert('Por favor, preencha título e descrição.');
@@ -112,11 +204,9 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
         titulo: novaDuvida.titulo,
         descricao: novaDuvida.descricao
       });
-      
+
       setNovaDuvida({ titulo: '', descricao: '' });
       setShowNewDuvidaModal(false);
-      
-      // Busca imediatamente os dados atualizados do backend para exibir na tela na hora
       await fetchDuvidas();
     } catch (error) {
       alert('Erro ao criar dúvida.');
@@ -136,8 +226,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
         descricao: editingDuvida.descricao
       });
       setShowEditDuvidaModal(false);
-      
-      // Atualiza estado local da dúvida editada
+
       setDuvidas(prev => prev.map(d => d.id === selectedDuvida.id ? { ...d, titulo: editingDuvida.titulo, descricao: editingDuvida.descricao } : d));
       setSelectedDuvida(prev => prev ? { ...prev, titulo: editingDuvida.titulo, descricao: editingDuvida.descricao } : null);
     } catch (error) {
@@ -145,18 +234,25 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
     }
   };
 
-  // DELETE: Excluir dúvida e remover do estado local imediatamente
-  const handleDeleteDuvida = async () => {
-    if (!selectedDuvida) return;
+  const handleDeleteDuvida = async (id: number) => {
     if (!window.confirm('Tem certeza que deseja excluir esta pergunta?')) return;
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      await api.delete(`/forum/duvida/${selectedDuvida.id}`, { data: { usuarioId: user.id } });
-      
-      setDuvidas(prev => prev.filter(d => d.id !== selectedDuvida.id));
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        alert('Erro: Usuário não autenticado!');
+        return;
+      }
+      const user = JSON.parse(userStr);
+
+      await api.delete(`/forum/duvida/${id}?usuarioId=${user.id}`);
+
+      alert('Dúvida excluída com sucesso!');
+      setDuvidas(prev => prev.filter(d => d.id !== id));
       setSelectedDuvida(null);
-    } catch (error) {
-      alert('Erro ao excluir dúvida.');
+    } catch (error: any) {
+      console.error('[Forum] Erro detalhado na exclusão:', error);
+      const errMsg = error.response?.data?.message || error.message || 'Erro desconhecido';
+      alert(`Erro no servidor: ${errMsg}`);
     }
   };
 
@@ -176,26 +272,23 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
     }
   };
 
-  // DELETE: Excluir resposta e atualizar a tela na hora sem precisar de F5
   const handleDeleteResposta = async (id: number) => {
     if (!window.confirm('Tem certeza que deseja excluir esta resposta?')) return;
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      
-      // 1. Apaga no backend (que já sabemos que está funcionando perfeitamente)
       await api.delete(`/forum/resposta/${id}`, { data: { usuarioId: user.id } });
 
-      // 2. Busca imediatamente os dados atualizados do backend para atualizar a tela na hora
-      const res = await api.get(`/forum/${disciplineId}`);
-      setDuvidas(res.data);
-      
+      await fetchDuvidas();
+
       if (selectedDuvida) {
+        const res = await api.get(`/forum/${disciplineId}`);
         const updatedDuvida = res.data.find((d: any) => d.id === selectedDuvida.id);
         if (updatedDuvida) {
           setSelectedDuvida(updatedDuvida);
           setRespostas(updatedDuvida.respostas || []);
         }
       }
+      alert('Resposta excluída com sucesso!');
     } catch (error) {
       console.error("Erro ao excluir resposta:", error);
       alert('Erro ao excluir resposta.');
@@ -214,65 +307,6 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
   };
 
   if (loading) return <div className="text-center p-5">Carregando fórum...</div>;
-
-  const RenderResposta = ({ resposta, depth = 0 }: { resposta: Resposta, depth: number }) => {
-    return (
-      <div style={{ marginLeft: depth > 0 ? '2rem' : '0' }} className="mb-3">
-        <Card className="border-0 shadow-sm p-3 bg-light">
-          <div className="d-flex justify-content-between mb-1">
-            <small className="fw-bold">{resposta?.usuario?.nome || 'Usuário'}</small>
-            <div className="d-flex gap-2 align-items-center">
-              {(() => {
-                const userStr = localStorage.getItem('user');
-                if (!userStr) return null;
-                const user = JSON.parse(userStr);
-                const isAuthor = Number(resposta?.usuario?.id) === Number(user.id);
-
-                return isAuthor ? (
-                  <>
-                    <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => {
-                      setEditingRespostaId(resposta.id);
-                      setEditingRespostaText(resposta.conteudo);
-                    }}>Editar</Button>
-                    <Button variant="link" size="sm" className="p-0 text-decoration-none text-danger" onClick={() => handleDeleteResposta(resposta.id)}>Excluir</Button>
-                  </>
-                ) : null;
-              })()}
-              <small className="text-muted" style={{ fontSize: '0.7rem' }}>{resposta?.dataResposta ? new Date(resposta.dataResposta).toLocaleString() : ''}</small>
-            </div>
-          </div>
-
-          {editingRespostaId === resposta.id ? (
-            <div className="d-flex gap-2 mt-2">
-              <Form.Control
-                size="sm"
-                value={editingRespostaText}
-                onChange={e => setEditingRespostaText(e.target.value)}
-              />
-              <Button size="sm" variant="dark" onClick={handleEditResposta}>Salvar</Button>
-              <Button size="sm" variant="secondary" onClick={() => setEditingRespostaId(null)}>Cancelar</Button>
-            </div>
-          ) : (
-            <p className="small mb-2">{resposta?.conteudo}</p>
-          )}
-
-          <Button variant="link" size="sm" className="p-0 text-decoration-none small fw-bold" onClick={() => {
-            setReplyingToResponseId(resposta.id);
-            setNovaResposta('');
-            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-          }}>Responder</Button>
-
-          {resposta.respostasFilhas && resposta.respostasFilhas.length > 0 && (
-            <div className="mt-3 border-start ps-3">
-              {resposta.respostasFilhas.map((filha) => (
-                <RenderResposta key={filha.id} resposta={filha} depth={depth + 1} />
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-    );
-  };
 
   return (
     <div className="p-4 bg-white border rounded shadow-sm">
@@ -392,7 +426,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
                             setEditingDuvida({ titulo: selectedDuvida.titulo, descricao: selectedDuvida.descricao });
                             setShowEditDuvidaModal(true);
                           }}>Editar</Button>
-                          <Button variant="outline-danger" size="sm" onClick={handleDeleteDuvida}>Excluir</Button>
+                          <Button variant="outline-danger" size="sm" onClick={() => handleDeleteDuvida(selectedDuvida.id)}>Excluir</Button>
                         </>
                       ) : null}
                     </>
@@ -432,7 +466,19 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
               };
               collectChildren(respostas || []);
               return respostas?.filter(r => !allChildrenIds.has(r.id)).map((r) => (
-                <RenderResposta key={r.id} resposta={r} depth={0} />
+                <RenderResposta
+                  key={r.id}
+                  resposta={r}
+                  depth={0}
+                  editingRespostaId={editingRespostaId}
+                  editingRespostaText={editingRespostaText}
+                  setEditingRespostaId={setEditingRespostaId}
+                  setEditingRespostaText={setEditingRespostaText}
+                  handleDeleteResposta={handleDeleteResposta}
+                  handleEditResposta={handleEditResposta}
+                  setReplyingToResponseId={setReplyingToResponseId}
+                  setNovaResposta={setNovaResposta}
+                />
               ));
             })()}
           </div>

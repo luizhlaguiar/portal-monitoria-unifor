@@ -8,7 +8,7 @@ import './Discipline.css';
 
 interface Schedule {
   id: number;
-  dayOfWeek: string;
+  date: string;
   startTime: string;
   endTime: string;
   room: string;
@@ -25,6 +25,7 @@ interface Activity {
   titulo: string;
   prazo: string;
   descricao: string;
+  arquivoUrl?: string;
 }
 
 interface Monitor {
@@ -165,7 +166,7 @@ const Discipline: React.FC = () => {
             <Table responsive hover className="align-middle">
               <thead className="bg-light text-muted small">
                 <tr className="text-center">
-                  <th className="border-0">Dia da Semana</th>
+                  <th className="border-0">Data</th>
                   <th className="border-0">Horário</th>
                   <th className="border-0">Sala</th>
                   <th className="border-0">Monitor Responsável</th>
@@ -179,10 +180,10 @@ const Discipline: React.FC = () => {
 
                   return (
                     <tr key={item.id} className="border-bottom">
-                      <td>{item.dayOfWeek}</td>
+                      <td>{item.date}</td>
                       <td>{item.startTime} - {item.endTime}</td>
                       <td>{item.room}</td>
-                      <td className="fw-bold">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
+                      <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
                       <td className="text-center">
                         {isAuthor ? (
                           <div className="d-flex gap-2 justify-content-center">
@@ -218,7 +219,13 @@ const Discipline: React.FC = () => {
                       <Badge bg="primary">Atividade</Badge>
                     </div>
                     <p className="small text-muted mt-2">{act.descricao}</p>
-                    <Button variant="link" className="p-0 text-decoration-none small fw-bold">Ver Instruções →</Button>
+                    {act.arquivoUrl && (
+                      <div className="mt-2">
+                        <a href={act.arquivoUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2">
+                          <i className="bi bi-file-earmark-text"></i> Ver Anexo
+                        </a>
+                      </div>
+                    )}
                   </Card>
                 </Col>
               ))}
@@ -250,11 +257,11 @@ const Discipline: React.FC = () => {
         <Modal.Body>
           <Form>
             <Form.Group className="mb-3">
-              <Form.Label className="small fw-bold">Dia da Semana</Form.Label>
+              <Form.Label className="small fw-bold">Data</Form.Label>
               <Form.Control
-                type="text"
-                value={editingSchedule.dayOfWeek || ''}
-                onChange={e => setEditingSchedule({...editingSchedule, dayOfWeek: e.target.value})}
+                type="date"
+                value={editingSchedule.date || ''}
+                onChange={e => setEditingSchedule({...editingSchedule, date: e.target.value})}
               />
             </Form.Group>
             <Row>

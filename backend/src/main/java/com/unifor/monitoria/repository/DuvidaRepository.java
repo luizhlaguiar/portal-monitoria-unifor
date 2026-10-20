@@ -13,8 +13,6 @@ public interface DuvidaRepository extends JpaRepository<Duvida, Integer> {
     @Query("SELECT DISTINCT d FROM Duvida d " +
            "JOIN FETCH d.aluno " +
            "JOIN FETCH d.disciplina " +
-           "LEFT JOIN FETCH d.respostas r " +
-           "LEFT JOIN FETCH r.usuario " +
            "WHERE d.disciplina.id = :disciplinaId")
     List<Duvida> findByDisciplina_Id(@Param("disciplinaId") Integer disciplinaId);
 }

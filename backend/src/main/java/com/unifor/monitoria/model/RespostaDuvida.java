@@ -25,12 +25,13 @@ public class RespostaDuvida {
     @com.fasterxml.jackson.annotation.JsonIgnore
     private RespostaDuvida respostaPai;
 
-    @OneToMany(mappedBy = "respostaPai", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "respostaPai", cascade = CascadeType.REMOVE, orphanRemoval = true)
     @com.fasterxml.jackson.annotation.JsonManagedReference
     private List<RespostaDuvida> respostasFilhas;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String conteudo;
+    private String anexoUrl;
 
     private LocalDateTime dataResposta = LocalDateTime.now();
 
@@ -51,6 +52,9 @@ public class RespostaDuvida {
 
     public String getConteudo() { return conteudo; }
     public void setConteudo(String conteudo) { this.conteudo = conteudo; }
+
+    public String getAnexoUrl() { return anexoUrl; }
+    public void setAnexoUrl(String anexoUrl) { this.anexoUrl = anexoUrl; }
 
     public LocalDateTime getDataResposta() { return dataResposta; }
     public void setDataResposta(LocalDateTime dataResposta) { this.dataResposta = dataResposta; }

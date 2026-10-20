@@ -1,7 +1,7 @@
 package com.unifor.monitoria.model;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "atividades")
@@ -15,10 +15,11 @@ public class Activity {
     private Discipline discipline;
 
     private String titulo;
-    private LocalDateTime prazo;
+    private LocalDate prazo;
 
     @Column(columnDefinition = "TEXT")
     private String descricao;
+    private String arquivoUrl;
 
     public Activity() {}
 
@@ -31,9 +32,12 @@ public class Activity {
     public String getTitulo() { return titulo; }
     public void setTitulo(String titulo) { this.titulo = titulo; }
 
-    public LocalDateTime getPrazo() { return prazo; }
-    public void setPrazo(LocalDateTime prazo) { this.prazo = prazo; }
+    public LocalDate getPrazo() { return prazo; }
+    public void setPrazo(LocalDate prazo) { this.prazo = prazo; }
 
     public String getDescricao() { return descricao; }
     public void setDescricao(String descricao) { this.descricao = descricao; }
+
+    public String getArquivoUrl() { return arquivoUrl; }
+    public void setArquivoUrl(String arquivoUrl) { this.arquivoUrl = arquivoUrl; }
 }

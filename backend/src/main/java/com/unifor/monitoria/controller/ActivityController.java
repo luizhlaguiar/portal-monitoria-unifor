@@ -18,6 +18,19 @@ public class ActivityController {
         return ResponseEntity.ok(activityRepository.save(activity));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Activity> updateActivity(@PathVariable Integer id, @RequestBody Activity activityDetails) {
+        return activityRepository.findById(id)
+                .map(activity -> {
+                    activity.setTitulo(activityDetails.getTitulo());
+                    activity.setPrazo(activityDetails.getPrazo());
+                    activity.setDescricao(activityDetails.getDescricao());
+                    activity.setArquivoUrl(activityDetails.getArquivoUrl());
+                    return ResponseEntity.ok(activityRepository.save(activity));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteActivity(@PathVariable Integer id) {
         activityRepository.deleteById(id);

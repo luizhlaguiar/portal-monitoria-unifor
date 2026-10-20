@@ -1,7 +1,6 @@
 package com.unifor.monitoria.controller;
 
 import com.unifor.monitoria.model.ChatMessage;
-import com.unifor.monitoria.model.Message;
 import com.unifor.monitoria.model.User;
 import com.unifor.monitoria.service.ChatService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +9,6 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Controller
@@ -29,38 +27,37 @@ public class ChatController {
 
     @MessageMapping("/chat.send")
     public void sendMessage(@Payload ChatMessage chatMessage) {
-        System.out.println(">>> WebSocket recebeu mensagem de " + chatMessage.getSenderId() + " para " + chatMessage.getReceiverId());
+        System.out.println(">>> [WebSocket Controller] RECEBENDO MENSAGEM...");
+
         try {
-            // 1. Enriquecer a mensagem com nomes reais
             Optional<User> senderOpt = userRepository.findById(chatMessage.getSenderId());
             Optional<User> receiverOpt = userRepository.findById(chatMessage.getReceiverId());
 
-            if (senderOpt.isPresent()) {
-                chatMessage.setSenderName(senderOpt.get().getNome());
-            }
-            if (receiverOpt.isPresent()) {
-                chatMessage.setReceiverName(receiverOpt.get().getNome());
-            }
+            if (senderOpt.isPresent()) chatMessage.setSenderName(senderOpt.get().getNome());
+            if (receiverOpt.isPresent()) chatMessage.setReceiverName(receiverOpt.get().getNome());
 
-            // 2. Pub/Sub via Redis: Notifica todos os servidores que uma mensagem foi enviada
-            // Isso garante a escalabilidade horizontal
+            // 1. Publicar no Redis para outros servidores
             redisTemplate.convertAndSend("chat-messages", chatMessage);
-            System.out.println(">>> Mensagem publicada no Redis para distribuição");
 
-            // 3. Envio imediato via WebSocket para o receptor (Low Latency)
+            // 2. ENVIO PARA O USUÁRIO
+            // Usamos /topic/messages para garantir a entrega instantânea sem depender de autenticação de sessão do Spring
+            // O cliente filtrará no frontend se a mensagem é para ele.
+            messagingTemplate.convertAndSend("/topic/messages", chatMessage);
+
+            // Mantemos o envio para a fila privada como redundância
             messagingTemplate.convertAndSendToUser(
                     chatMessage.getReceiverId().toString(),
                     "/queue/messages",
                     chatMessage
             );
-            System.out.println(">>> Mensagem enviada instantaneamente via WebSocket");
 
-            // 4. Gravação ASSÍNCRONA no MySQL (Não trava o chat)
+            System.out.println(">>> [WebSocket Controller] Mensagem disparada via /topic/messages e /user/queue");
+
+            // 3. Salvar no banco assincronamente
             chatService.saveMessageAsync(chatMessage);
-            System.out.println(">>> Gravação no banco disparada em background");
 
         } catch (Exception e) {
-            System.err.println(">>> ERRO CRÍTICO ao processar mensagem no WebSocket: " + e.getMessage());
+            System.err.println(">>> [WebSocket Controller] ERRO: " + e.getMessage());
             e.printStackTrace();
         }
     }

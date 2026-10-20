@@ -23,11 +23,12 @@ public class ChatService {
 
     @Async
     public void saveMessageAsync(ChatMessage chatMessage) {
+        System.out.println(">>> [ChatService ASYNC] Iniciando salvamento no banco para a mensagem: " + chatMessage.getContent());
         try {
             User sender = userRepository.findById(chatMessage.getSenderId())
-                    .orElseThrow(() -> new RuntimeException("Sender not found"));
+                    .orElseThrow(() -> new RuntimeException("Sender not found: " + chatMessage.getSenderId()));
             User receiver = userRepository.findById(chatMessage.getReceiverId())
-                    .orElseThrow(() -> new RuntimeException("Receiver not found"));
+                    .orElseThrow(() -> new RuntimeException("Receiver not found: " + chatMessage.getReceiverId()));
 
             Conversation conversation = getOrCreateConversation(sender, receiver);
 
@@ -40,9 +41,10 @@ public class ChatService {
             message.setRead(false);
 
             messageRepository.save(message);
-            System.out.println(">>> [ASYNC] Mensagem salva no banco em background: " + chatMessage.getContent());
+            System.out.println(">>> [ChatService ASYNC] SUCESSO: Mensagem salva no MySQL ID: " + message.getId());
         } catch (Exception e) {
-            System.err.println(">>> [ASYNC] Erro ao salvar mensagem: " + e.getMessage());
+            System.err.println(">>> [ChatService ASYNC] ERRO ao salvar mensagem: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

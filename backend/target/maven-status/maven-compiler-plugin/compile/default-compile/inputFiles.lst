@@ -1,5 +1,6 @@
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\model\DuvidaDTO.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\model\RespostaDuvida.java
+C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\service\PresencaService.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\repository\MatriculaRepository.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\controller\AuthController.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\repository\DuvidaRepository.java
@@ -13,14 +14,17 @@ C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\controller\ActivityController.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\model\User.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\MonitoriaApplication.java
+C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\controller\PresencaController.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\model\ChatMessage.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\repository\ConversationRepository.java
+C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\repository\PresencaRepository.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\exception\GlobalExceptionHandler.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\service\ForumService.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\config\RedisConfig.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\config\WebConfig.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\controller\ChatController.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\config\CorsFilter.java
+C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\model\Presenca.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\repository\CourseRepository.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\model\Conversation.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\repository\RespostaDuvidaRepository.java
@@ -30,6 +34,7 @@ C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\model\Schedule.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\model\Matricula.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\config\SecurityConfig.java
+C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\config\AsyncConfig.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\config\WebSocketConfig.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\controller\DisciplineController.java
 C:\Users\luizh\OneDrive\Documentos\Faculdade\Desenvolvimento Web\Trabalho final\portal-monitoria-new\backend\src\main\java\com\unifor\monitoria\repository\DisciplineRepository.java

@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: mysql-monitoria
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 12345678
+      MYSQL_DATABASE: portal_monitoria
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Se você quiser que o dump seja importado automaticamente ao subir o container pela primeira vez,
+      # coloque o arquivo .sql na pasta /docker-entrypoint-initdb.d/ do seu computador e descomente a linha abaixo:
+      # - C:/Users/luizh/OneDrive/Documentos/dumps/Dump20261013.sql:/docker-entrypoint-initdb.d/dump.sql
+
+  redis:
+    image: redis:alpine
+    container_name: redis-monitoria
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mysql_data:
+  redis_data:

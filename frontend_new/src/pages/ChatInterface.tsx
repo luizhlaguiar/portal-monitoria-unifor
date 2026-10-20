@@ -22,18 +22,35 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
   const [messages, setMessages] = useState<MessageUI[]>([]);
   const [inputText, setInputText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const selectedContactRef = useRef<Contact | null>(null);
+
+  useEffect(() => {
+    selectedContactRef.current = selectedContact;
+  }, [selectedContact]);
 
   useEffect(() => {
     if (!currentUserId) return;
 
-    chatService.connect(currentUserId, (msg: ChatMessage) => {
-      setMessages((prev) => [...prev, {
-        id: Date.now(),
-        senderId: msg.senderId,
-        senderName: msg.senderName,
-        content: msg.content,
-        timestamp: new Date().toISOString()
-      }]);
+    chatService.ensureConnected(currentUserId, (msg: ChatMessage) => {
+      setMessages((prev) => {
+        const currentContact = selectedContactRef.current;
+        const isFromMe = msg.senderId === currentUserId;
+        const isFromSelectedContact = currentContact && msg.senderId === currentContact.id;
+
+        if (isFromMe || isFromSelectedContact) {
+          const isDuplicate = prev.some(m => m.content === msg.content && m.senderId === msg.senderId && (Date.now() - new Date(m.timestamp).getTime() < 2000));
+          if (isDuplicate) return prev;
+
+          return [...prev, {
+            id: Date.now(),
+            senderId: msg.senderId,
+            senderName: msg.senderName,
+            content: msg.content,
+            timestamp: new Date().toISOString()
+          }];
+        }
+        return prev;
+      });
     });
   }, [currentUserId]);
 
@@ -45,9 +62,7 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
 
   const loadChatHistory = async (contactId: number) => {
     try {
-      console.log(`Carregando histórico para contato ${contactId}...`);
       const response = await api.get(`/chat/history/${currentUserId}/${contactId}`);
-      console.log('Resposta do servidor:', response.data);
 
       let historyData = [];
       if (response.data && Array.isArray(response.data)) {
@@ -62,7 +77,7 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
         senderName: msg.sender?.nome || msg.usuario_nome || (msg.senderId !== currentUserId ? selectedContact?.nome : 'Eu'),
         content: msg.content,
         timestamp: msg.timestamp
-      })).reverse(); // Inverte para que as mensagens antigas fiquem no topo
+      })).reverse();
 
       setMessages(formattedHistory);
     } catch (error) {
@@ -82,7 +97,7 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
 
     const msg: ChatMessage = {
       type: 'CHAT',
-      senderId: currentUserId,
+      senderId: currentUserId!,
       receiverId: selectedContact.id,
       content: inputText,
     };
@@ -91,7 +106,7 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
 
     setMessages((prev) => [...prev, {
       id: Date.now(),
-      senderId: currentUserId,
+      senderId: currentUserId!,
       content: inputText,
       timestamp: new Date().toISOString()
     }]);
@@ -101,40 +116,51 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
 
   return (
     <Container fluid className="p-0">
-      <Row className="g-0" style={{ height: '600px' }}>
-        <Col md={4} className="border-end bg-light" style={{ overflowY: 'auto' }}>
+      {/* Altura fixa para o container principal para evitar que a página inteira role */}
+      <Row className="g-0" style={{ height: '600px', maxHeight: '80vh' }}>
+        <Col md={4} className="border-end bg-light d-flex flex-column" style={{ height: '100%' }}>
           <div className="p-3 border-bottom bg-white sticky-top">
             <h5 className="fw-bold mb-0">Conversas</h5>
           </div>
-          <div className="list-group list-group-flush">
-            {contacts.map(contact => (
-              <button
-                key={contact.id}
-                onClick={() => setSelectedContact(contact)}
-                className={`list-group-item list-group-item-action d-flex align-items-center gap-3 p-3 border-0 ${selectedContact?.id === contact.id ? 'bg-primary text-white' : ''}`}
-                style={{ cursor: 'pointer' }}
-              >
-                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${contact.nome}`} alt={contact.nome} className="rounded-circle" style={{width: '45px', height: '45px', border: '2px solid #eee'}} />
-                <div className="text-start">
-                  <div className="fw-bold">{contact.nome}</div>
-                  <small className={selectedContact?.id === contact.id ? 'text-white-50' : 'text-muted'}>Clique para conversar</small>
-                </div>
-              </button>
-            ))}
+          <div className="overflow-auto flex-grow-1">
+            <div className="list-group list-group-flush">
+              {contacts.map(contact => (
+                <button
+                  key={contact.id}
+                  onClick={() => setSelectedContact(contact)}
+                  className={`list-group-item list-group-item-action d-flex align-items-center gap-3 p-3 border-0 ${selectedContact?.id === contact.id ? 'bg-primary text-white' : ''}`}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${contact.nome}`} alt={contact.nome} className="rounded-circle" style={{width: '45px', height: '45px', border: '2px solid #eee'}} />
+                  <div className="text-start">
+                    <div className="fw-bold">{contact.nome}</div>
+                    <small className={selectedContact?.id === contact.id ? 'text-white-50' : 'text-muted'}>Clique para conversar</small>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </Col>
-        <Col md={8} className="d-flex flex-column bg-white">
+
+        <Col md={8} className="d-flex flex-column bg-white" style={{ height: '100%' }}>
           {selectedContact ? (
             <>
-              <div className="p-3 border-bottom d-flex align-items-center gap-3 bg-white sticky-top">
+              {/* Cabeçalho fixo */}
+              <div className="p-3 border-bottom d-flex align-items-center gap-3 bg-white" style={{ flexShrink: 0 }}>
                 <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedContact.nome}`} alt={selectedContact.nome} className="rounded-circle" style={{width: '40px', height: '40px'}} />
                 <h6 className="fw-bold mb-0">{selectedContact.nome}</h6>
               </div>
 
+              {/* ÁREA DE MENSAGENS COM ROLAGEM INDEPENDENTE */}
               <div
                 ref={scrollRef}
                 className="flex-grow-1 p-4 overflow-auto"
-                style={{ backgroundColor: '#e5ddd5', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e8-101a-72dc5ef8220d.jpg")', backgroundBlendMode: 'overlay' }}
+                style={{
+                  backgroundColor: '#e5ddd5',
+                  backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc도f70-73b1-11e8-101a-72dc5ef8220d.jpg")',
+                  backgroundBlendMode: 'overlay',
+                  position: 'relative'
+                }}
               >
                 <div className="d-flex flex-column gap-3">
                   {messages.map((msg, index) => (
@@ -155,7 +181,8 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
                 </div>
               </div>
 
-              <Form onSubmit={handleSendMessage} className="p-3 border-top bg-light d-flex gap-2">
+              {/* Rodapé fixo */}
+              <Form onSubmit={handleSendMessage} className="p-3 border-top bg-light d-flex gap-2" style={{ flexShrink: 0 }}>
                 <Form.Control
                   type="text"
                   placeholder="Digite sua mensagem..."

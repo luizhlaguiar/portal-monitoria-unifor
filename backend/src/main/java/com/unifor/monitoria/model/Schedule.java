@@ -1,8 +1,11 @@
 package com.unifor.monitoria.model;
 
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "horarios_monitoria")
@@ -11,18 +14,26 @@ public class Schedule {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @JsonIgnoreProperties({"schedules", "discipline"})
     @ManyToOne
     @JoinColumn(name = "monitoria_id")
     private MonitoringSession monitoringSession;
 
-    private String dayOfWeek;
+    @Column(name = "date")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate date;
 
+    @JsonProperty("startTime")
+    @Column(name = "start_time")
     @JsonFormat(pattern = "HH:mm")
     private LocalTime startTime;
 
+    @JsonProperty("endTime")
+    @Column(name = "end_time")
     @JsonFormat(pattern = "HH:mm")
     private LocalTime endTime;
 
+    @Column(name = "room")
     private String room;
 
     public Schedule() {}
@@ -33,8 +44,8 @@ public class Schedule {
     public MonitoringSession getMonitoringSession() { return monitoringSession; }
     public void setMonitoringSession(MonitoringSession monitoringSession) { this.monitoringSession = monitoringSession; }
 
-    public String getDayOfWeek() { return dayOfWeek; }
-    public void setDayOfWeek(String dayOfWeek) { this.dayOfWeek = dayOfWeek; }
+    public LocalDate getDate() { return date; }
+    public void setDate(LocalDate date) { this.date = date; }
 
     public LocalTime getStartTime() { return startTime; }
     public void setStartTime(LocalTime startTime) { this.startTime = startTime; }
