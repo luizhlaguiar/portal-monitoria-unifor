@@ -1,6 +1,7 @@
 package com.unifor.monitoria.controller;
 
 import com.unifor.monitoria.model.*;
+import com.unifor.monitoria.repository.AnexoForumRepository;
 import com.unifor.monitoria.service.ForumService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,9 @@ public class ForumController {
 
     @Autowired
     private ForumService forumService;
+
+    @Autowired
+    private AnexoForumRepository anexoForumRepository;
 
     @GetMapping("/{disciplinaId}")
     public ResponseEntity<?> listar(@PathVariable Integer disciplinaId) {
@@ -109,7 +113,51 @@ public class ForumController {
         if (usuarioId == null) return ResponseEntity.badRequest().build();
 
         forumService.excluirDuvida(duvidaId, usuarioId);
+        anexoForumRepository.deleteByReferenciaIdAndTipo(duvidaId.longValue(), AnexoForum.TipoAnexo.DUVIDA);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/anexo")
+    public ResponseEntity<?> adicionarAnexo(@RequestBody Map<String, Object> payload) {
+        if (payload == null) return ResponseEntity.badRequest().build();
+
+        String url = (String) payload.get("url");
+        Long referenciaId = Long.valueOf(payload.get("referenciaId").toString());
+        String tipoStr = (String) payload.get("tipo");
+
+        if (url == null || referenciaId == null || tipoStr == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        AnexoForum anexo = new AnexoForum();
+        anexo.setUrl(url);
+        anexo.setReferenciaId(referenciaId);
+        anexo.setTipo(AnexoForum.TipoAnexo.valueOf(tipoStr));
+
+        return ResponseEntity.ok(anexoForumRepository.save(anexo));
+    }
+
+    @GetMapping("/anexos/{referenciaId}/{tipo}")
+    public ResponseEntity<?> listarAnexos(@PathVariable Long referenciaId, @PathVariable String tipo) {
+        return ResponseEntity.ok(anexoForumRepository.findByReferenciaIdAndTipo(referenciaId, AnexoForum.TipoAnexo.valueOf(tipo)));
+    }
+
+    @DeleteMapping("/anexo/{id}")
+    public ResponseEntity<Void> excluirAnexo(@PathVariable Long id) {
+        anexoForumRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/anexo/{id}")
+    public ResponseEntity<?> atualizarAnexo(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+        if (payload == null || !payload.containsKey("url")) return ResponseEntity.badRequest().build();
+
+        return anexoForumRepository.findById(id)
+                .map(anexo -> {
+                    anexo.setUrl(payload.get("url"));
+                    return ResponseEntity.ok(anexoForumRepository.save(anexo));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     private Integer parseInteger(Object value) {

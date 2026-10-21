@@ -27,7 +27,10 @@ public class ChatController {
 
     @MessageMapping("/chat.send")
     public void sendMessage(@Payload ChatMessage chatMessage) {
-        System.out.println(">>> [WebSocket Controller] RECEBENDO MENSAGEM...");
+        System.out.println(">>> [WebSocket Controller] RECEBENDO MENSAGEM: " + chatMessage.getContent());
+        if (chatMessage.getArquivoUrl() != null) {
+            System.out.println(">>> [WebSocket Controller] ARQUIVO DETECTADO: " + chatMessage.getArquivoUrl());
+        }
 
         try {
             Optional<User> senderOpt = userRepository.findById(chatMessage.getSenderId());
@@ -40,24 +43,21 @@ public class ChatController {
             redisTemplate.convertAndSend("chat-messages", chatMessage);
 
             // 2. ENVIO PARA O USUÁRIO
-            // Usamos /topic/messages para garantir a entrega instantânea sem depender de autenticação de sessão do Spring
-            // O cliente filtrará no frontend se a mensagem é para ele.
             messagingTemplate.convertAndSend("/topic/messages", chatMessage);
 
-            // Mantemos o envio para a fila privada como redundância
             messagingTemplate.convertAndSendToUser(
                     chatMessage.getReceiverId().toString(),
                     "/queue/messages",
                     chatMessage
             );
 
-            System.out.println(">>> [WebSocket Controller] Mensagem disparada via /topic/messages e /user/queue");
+            System.out.println(">>> [WebSocket Controller] Mensagem disparada com sucesso");
 
             // 3. Salvar no banco assincronamente
             chatService.saveMessageAsync(chatMessage);
 
         } catch (Exception e) {
-            System.err.println(">>> [WebSocket Controller] ERRO: " + e.getMessage());
+            System.err.println(">>> [WebSocket Controller] ERRO CRÍTICO AO PROCESSAR MENSAGEM: " + e.getMessage());
             e.printStackTrace();
         }
     }

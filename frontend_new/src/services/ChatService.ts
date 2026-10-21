@@ -8,6 +8,7 @@ export interface ChatMessage {
     receiverId: number;
     receiverName?: string;
     content: string;
+    arquivoUrl?: string;
     timestamp?: string;
     conversationId?: number;
 }

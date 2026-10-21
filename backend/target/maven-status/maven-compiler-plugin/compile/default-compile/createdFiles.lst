@@ -3,6 +3,8 @@ com\unifor\monitoria\config\WebConfig.class
 com\unifor\monitoria\controller\DisciplineController.class
 com\unifor\monitoria\model\Schedule.class
 com\unifor\monitoria\config\SecurityConfig.class
+com\unifor\monitoria\model\AnexoForum.class
+com\unifor\monitoria\model\UserDTO.class
 com\unifor\monitoria\config\CorsFilter.class
 com\unifor\monitoria\model\Presenca.class
 com\unifor\monitoria\controller\ChatController.class
@@ -19,10 +21,12 @@ com\unifor\monitoria\model\User$Role.class
 com\unifor\monitoria\repository\PresencaRepository.class
 com\unifor\monitoria\controller\ChatRestController.class
 com\unifor\monitoria\service\ForumService.class
+com\unifor\monitoria\model\AnexoForum$TipoAnexo.class
 com\unifor\monitoria\config\AsyncConfig.class
 com\unifor\monitoria\model\MonitoringSession.class
 com\unifor\monitoria\service\PresencaService.class
 com\unifor\monitoria\repository\ActivityRepository.class
+com\unifor\monitoria\repository\AnexoForumRepository.class
 com\unifor\monitoria\repository\ConversationRepository.class
 com\unifor\monitoria\repository\CourseRepository.class
 com\unifor\monitoria\config\WebSocketConfig.class

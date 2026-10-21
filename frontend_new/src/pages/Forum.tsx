@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Badge, Modal, Form, ListGroup } from 'react-bootstrap';
 import api from '../services/api';
+import { storageService } from '../services/storageService';
 import './Forum.css';
 
 interface Duvida {
@@ -24,9 +25,25 @@ interface Resposta {
   usuario?: { id: number; nome: string };
   respostaPaiId?: number;
   respostasFilhas?: Resposta[];
+  anexos?: string[];
 }
 
-// COMPONENTE MOVIDO PARA FORA DO FORUM PARA EVITAR PERDA DE FOCO NO INPUT
+// Componente para renderizar a galeria de fotos de um anexo
+const AnexoGallery: React.FC<{ anexos: string[], onRemove?: (id: number) => void }> = ({ anexos, onRemove }) => {
+  if (!anexos || anexos.length === 0) return null;
+  return (
+    <div className="d-flex flex-wrap gap-2 mt-2">
+      {anexos.map((url, idx) => (
+        <div key={idx} className="position-relative">
+          <a href={url} target="_blank" rel="noopener noreferrer">
+            <img src={url} alt="Anexo" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ddd' }} />
+          </a>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const RenderResposta: React.FC<{
   resposta: Resposta,
   depth: number,
@@ -37,7 +54,7 @@ const RenderResposta: React.FC<{
   handleDeleteResposta: (id: number) => void,
   handleEditResposta: () => void,
   setReplyingToResponseId: (id: number | null) => void,
-  setNovaResposta: (text: string) => void
+  setNovaResposta: (text: string) => void,
 }> = ({
   resposta,
   depth,
@@ -50,6 +67,20 @@ const RenderResposta: React.FC<{
   setReplyingToResponseId,
   setNovaResposta
 }) => {
+  const [anexos, setAnexos] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchAnexos = async () => {
+      try {
+        const res = await api.get(`/forum/anexos/${resposta.id}/RESPOSTA`);
+        setAnexos(res.data.map((a: any) => a.url));
+      } catch (error) {
+        console.error('Erro ao carregar anexos da resposta:', error);
+      }
+    };
+    if (resposta.id) fetchAnexos();
+  }, [resposta.id]);
+
   return (
     <div style={{ marginLeft: depth > 0 ? '2rem' : '0' }} className="mb-3">
       <Card className="border-0 shadow-sm p-3 bg-light">
@@ -88,7 +119,10 @@ const RenderResposta: React.FC<{
             <Button size="sm" variant="secondary" onClick={() => setEditingRespostaId(null)}>Cancelar</Button>
           </div>
         ) : (
-          <p className="small mb-2">{resposta?.conteudo}</p>
+          <>
+            <p className="small mb-2">{resposta?.conteudo}</p>
+            <AnexoGallery anexos={anexos} />
+          </>
         )}
 
         <Button variant="link" size="sm" className="p-0 text-decoration-none small fw-bold" onClick={() => {
@@ -132,10 +166,16 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
 
   const [showEditDuvidaModal, setShowEditDuvidaModal] = useState(false);
   const [editingDuvida, setEditingDuvida] = useState({ titulo: '', descricao: '' });
+  const [editingDuvidaArquivo, setEditingDuvidaArquivo] = useState<File | null>(null);
   const [editingRespostaId, setEditingRespostaId] = useState<number | null>(null);
   const [editingRespostaText, setEditingRespostaText] = useState('');
+  const [editingRespostaArquivo, setEditingRespostaArquivo] = useState<File | null>(null);
   const [replyingToResponseId, setReplyingToResponseId] = useState<number | null>(null);
   const [isPosting, setIsPosting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [novaDuvidaArquivo, setNovaDuvidaArquivo] = useState<File | null>(null);
+  const [novaRespostaArquivo, setNovaRespostaArquivo] = useState<File | null>(null);
+  const [selectedDuvidaAnexos, setSelectedDuvidaAnexos] = useState<string[]>([]);
 
   const fetchDuvidas = async () => {
     try {
@@ -157,9 +197,17 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
     if (disciplineId) fetchDuvidas();
   }, [disciplineId]);
 
-  const handleOpenTopic = (duvida: Duvida) => {
+  const handleOpenTopic = async (duvida: Duvida) => {
     setSelectedDuvida(duvida);
     setRespostas(duvida.respostas || []);
+
+    try {
+      const res = await api.get(`/forum/anexos/${duvida.id}/DUVIDA`);
+      setSelectedDuvidaAnexos(res.data.map((a: any) => a.url));
+    } catch (error) {
+      console.error('Erro ao carregar anexos da dúvida:', error);
+      setSelectedDuvidaAnexos([]);
+    }
   };
 
   const handlePostReply = async () => {
@@ -167,13 +215,26 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
     try {
       setIsPosting(true);
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      await api.post(`/forum/duvida/${selectedDuvida.id}/resposta`, {
+
+      const resResposta = await api.post(`/forum/duvida/${selectedDuvida.id}/resposta`, {
         usuarioId: user.id,
         conteudo: novaResposta,
         respostaPaiId: replyingToResponseId
       });
+      const respostaId = resResposta.data.id;
+
+      if (novaRespostaArquivo) {
+        setIsUploading(true);
+        const url = await storageService.uploadFile(novaRespostaArquivo, 'forum');
+        await api.post('/forum/anexo', {
+          url: url,
+          referenciaId: respostaId,
+          tipo: 'RESPOSTA'
+        });
+      }
 
       setNovaResposta('');
+      setNovaRespostaArquivo(null);
       setReplyingToResponseId(null);
 
       const res = await api.get(`/forum/${disciplineId}`);
@@ -188,6 +249,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
       alert('Erro ao enviar resposta');
     } finally {
       setIsPosting(false);
+      setIsUploading(false);
     }
   };
 
@@ -197,19 +259,36 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
       return;
     }
     try {
+      setIsPosting(true);
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      await api.post('/forum/duvida', {
+
+      const resDuvida = await api.post('/forum/duvida', {
         alunoId: user.id,
         disciplinaId: Number(disciplineId),
         titulo: novaDuvida.titulo,
         descricao: novaDuvida.descricao
       });
+      const duvidaId = resDuvida.data.id;
+
+      if (novaDuvidaArquivo) {
+        setIsUploading(true);
+        const url = await storageService.uploadFile(novaDuvidaArquivo, 'forum');
+        await api.post('/forum/anexo', {
+          url: url,
+          referenciaId: duvidaId,
+          tipo: 'DUVIDA'
+        });
+      }
 
       setNovaDuvida({ titulo: '', descricao: '' });
+      setNovaDuvidaArquivo(null);
       setShowNewDuvidaModal(false);
       await fetchDuvidas();
     } catch (error) {
       alert('Erro ao criar dúvida.');
+    } finally {
+      setIsPosting(false);
+      setIsUploading(false);
     }
   };
 
@@ -219,18 +298,36 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
       return;
     }
     try {
+      setIsPosting(true);
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       await api.put(`/forum/duvida/${selectedDuvida.id}`, {
         usuarioId: user.id,
         titulo: editingDuvida.titulo,
         descricao: editingDuvida.descricao
       });
-      setShowEditDuvidaModal(false);
 
+      if (editingDuvidaArquivo) {
+        setIsUploading(true);
+        const url = await storageService.uploadFile(editingDuvidaArquivo, 'forum');
+
+        // Busca o anexo atual para atualizar, ou cria um novo se não existir
+        const anexosRes = await api.get(`/forum/anexos/${selectedDuvida.id}/DUVIDA`);
+        if (anexosRes.data && anexosRes.data.length > 0) {
+          await api.put(`/forum/anexo/${anexosRes.data[0].id}`, { url });
+        } else {
+          await api.post('/forum/anexo', { url, referenciaId: selectedDuvida.id, tipo: 'DUVIDA' });
+        }
+      }
+
+      setShowEditDuvidaModal(false);
+      setEditingDuvidaArquivo(null);
       setDuvidas(prev => prev.map(d => d.id === selectedDuvida.id ? { ...d, titulo: editingDuvida.titulo, descricao: editingDuvida.descricao } : d));
       setSelectedDuvida(prev => prev ? { ...prev, titulo: editingDuvida.titulo, descricao: editingDuvida.descricao } : null);
     } catch (error) {
       alert('Erro ao editar dúvida.');
+    } finally {
+      setIsPosting(false);
+      setIsUploading(false);
     }
   };
 
@@ -259,16 +356,34 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
   const handleEditResposta = async () => {
     if (!editingRespostaId || !editingRespostaText.trim()) return;
     try {
+      setIsPosting(true);
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       await api.put(`/forum/resposta/${editingRespostaId}`, {
         usuarioId: user.id,
         conteudo: editingRespostaText
       });
+
+      if (editingRespostaArquivo) {
+        setIsUploading(true);
+        const url = await storageService.uploadFile(editingRespostaArquivo, 'forum');
+
+        const anexosRes = await api.get(`/forum/anexos/${editingRespostaId}/RESPOSTA`);
+        if (anexosRes.data && anexosRes.data.length > 0) {
+          await api.put(`/forum/anexo/${anexosRes.data[0].id}`, { url });
+        } else {
+          await api.post('/forum/anexo', { url, referenciaId: editingRespostaId, tipo: 'RESPOSTA' });
+        }
+      }
+
       setEditingRespostaId(null);
       setEditingRespostaText('');
+      setEditingRespostaArquivo(null);
       setRespostas(prev => prev.map(r => r.id === editingRespostaId ? { ...r, conteudo: editingRespostaText } : r));
     } catch (error) {
       alert('Erro ao editar resposta.');
+    } finally {
+      setIsPosting(false);
+      setIsUploading(false);
     }
   };
 
@@ -361,7 +476,17 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
                 placeholder="Explique detalhadamente sua dúvida..."
                 value={novaDuvida.descricao}
                 onChange={e => setNovaDuvida({...novaDuvida, descricao: e.target.value})}
-              />
+                />
+              <Form.Group className="mt-2">
+                <Form.Label className="small fw-bold">Anexar Foto</Form.Label>
+                <Form.Control
+                  type="file"
+                  accept="image/*"
+                  size="sm"
+                  onChange={e => setNovaDuvidaArquivo(e.target.files ? e.target.files[0] : null)}
+                />
+                {novaDuvidaArquivo && <small className="text-success">{novaDuvidaArquivo.name}</small>}
+              </Form.Group>
             </Form.Group>
           </Form>
         </Modal.Body>
@@ -393,6 +518,16 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
                 value={editingDuvida.descricao}
                 onChange={e => setEditingDuvida({...editingDuvida, descricao: e.target.value})}
               />
+              <Form.Group className="mt-2">
+                <Form.Label className="small fw-bold">Trocar Foto</Form.Label>
+                <Form.Control
+                  type="file"
+                  accept="image/*"
+                  size="sm"
+                  onChange={e => setEditingDuvidaArquivo(e.target.files ? e.target.files[0] : null)}
+                />
+                {editingDuvidaArquivo && <small className="text-success">{editingDuvidaArquivo.name}</small>}
+              </Form.Group>
             </Form.Group>
           </Form>
         </Modal.Body>
@@ -435,6 +570,7 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
               </div>
             </div>
             <p className="mb-3">{selectedDuvida?.descricao || 'Sem descrição'}</p>
+            <AnexoGallery anexos={selectedDuvidaAnexos} />
             <Button
               variant="link"
               size="sm"
@@ -483,14 +619,26 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
             })()}
           </div>
 
-          <Form className="d-flex gap-2" onSubmit={(e) => { e.preventDefault(); handlePostReply(); }}>
-            <Form.Control
-              placeholder={replyingToResponseId ? `Respondendo à resposta...` : "Escreva sua resposta..."}
-              value={novaResposta}
-              onChange={e => setNovaResposta(e.target.value)}
-            />
-            <Button variant="dark" onClick={handlePostReply} disabled={isPosting}>
-              {isPosting ? 'Enviando...' : 'Enviar'}
+          <Form className="d-flex gap-2 align-items-end" onSubmit={(e) => { e.preventDefault(); handlePostReply(); }}>
+            <div className="flex-grow-1">
+              <Form.Control
+                placeholder={replyingToResponseId ? `Respondendo à resposta...` : "Escreva sua resposta..."}
+                value={novaResposta}
+                onChange={e => setNovaResposta(e.target.value)}
+              />
+              <Form.Group className="mt-2">
+                <Form.Label className="small fw-bold">Anexar Foto</Form.Label>
+                <Form.Control
+                  type="file"
+                  accept="image/*"
+                  size="sm"
+                  onChange={e => setNovaRespostaArquivo(e.target.files ? e.target.files[0] : null)}
+                />
+                {novaRespostaArquivo && <small className="text-success">{novaRespostaArquivo.name}</small>}
+              </Form.Group>
+            </div>
+            <Button variant="dark" onClick={handlePostReply} disabled={isPosting || isUploading}>
+              {isPosting || isUploading ? 'Enviando...' : 'Enviar'}
             </Button>
             {replyingToResponseId && (
               <Button variant="secondary" size="sm" onClick={() => setReplyingToResponseId(null)}>Cancelar</Button>

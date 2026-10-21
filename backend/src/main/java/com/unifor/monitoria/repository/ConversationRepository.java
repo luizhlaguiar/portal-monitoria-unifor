@@ -1,17 +1,19 @@
 package com.unifor.monitoria.repository;
 
 import com.unifor.monitoria.model.Conversation;
+import com.unifor.monitoria.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
 public interface ConversationRepository extends JpaRepository<Conversation, Integer> {
-    Optional<Conversation> findByUserAndMonitor(com.unifor.monitoria.model.User user, com.unifor.monitoria.model.User monitor);
+    Optional<Conversation> findByUserAndMonitor(User user, User monitor);
 
-    List<Conversation> findByMonitor(com.unifor.monitoria.model.User monitor);
+    List<Conversation> findByMonitor(User monitor);
+    List<Conversation> findByUser(User user);
 
     Optional<Conversation> findByUserAndMonitorOrUserAndMonitor(
-        com.unifor.monitoria.model.User user1, com.unifor.monitoria.model.User monitor1,
-        com.unifor.monitoria.model.User user2, com.unifor.monitoria.model.User monitor2
+        User user1, User monitor1,
+        User user2, User monitor2
     );
 }

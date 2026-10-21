@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Container, Row, Col, Card, Form, Button } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, Button, Modal } from 'react-bootstrap';
 import chatService, { ChatMessage } from '../services/ChatService';
 import api from '../services/api';
+import { storageService } from '../services/storageService';
+import './Forum.css';
 
 interface Contact {
   id: number;
@@ -14,13 +16,19 @@ interface MessageUI {
   senderId: number;
   senderName?: string;
   content: string;
+  arquivoUrl?: string;
   timestamp: string;
 }
 
-const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | null }> = ({ contacts, currentUserId }) => {
+const ChatInterface: React.FC<{ currentUserId: number | null }> = ({ currentUserId }) => {
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<MessageUI[]>([]);
   const [inputText, setInputText] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [availableContacts, setAvailableContacts] = useState<Contact[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedContactRef = useRef<Contact | null>(null);
 
@@ -31,6 +39,28 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
   useEffect(() => {
     if (!currentUserId) return;
 
+    const loadActiveConversations = async () => {
+      try {
+        const userStr = localStorage.getItem('user');
+        if (!userStr) return;
+        const user = JSON.parse(userStr);
+
+        if (user.role === 'MONITOR') {
+          const res = await api.get(`/chat/conversations/${currentUserId}`);
+          setContacts(res.data);
+        } else {
+          // Alunos devem ver as conversas ativas que já possuem com monitores,
+          // além de poderem iniciar novas.
+          const res = await api.get(`/chat/conversations/${currentUserId}`);
+          setContacts(res.data);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar conversas ativas:', error);
+      }
+    };
+
+    loadActiveConversations();
+
     chatService.ensureConnected(currentUserId, (msg: ChatMessage) => {
       setMessages((prev) => {
         const currentContact = selectedContactRef.current;
@@ -38,7 +68,7 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
         const isFromSelectedContact = currentContact && msg.senderId === currentContact.id;
 
         if (isFromMe || isFromSelectedContact) {
-          const isDuplicate = prev.some(m => m.content === msg.content && m.senderId === msg.senderId && (Date.now() - new Date(m.timestamp).getTime() < 2000));
+          const isDuplicate = prev.some(m => m.content === msg.content && m.senderId === msg.senderId && m.arquivoUrl === msg.arquivoUrl && (Date.now() - new Date(m.timestamp).getTime() < 2000));
           if (isDuplicate) return prev;
 
           return [...prev, {
@@ -46,6 +76,7 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
             senderId: msg.senderId,
             senderName: msg.senderName,
             content: msg.content,
+            arquivoUrl: msg.arquivoUrl,
             timestamp: new Date().toISOString()
           }];
         }
@@ -53,6 +84,26 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
       });
     });
   }, [currentUserId]);
+
+  const handleOpenContactModal = async () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (!userStr) return;
+      const user = JSON.parse(userStr);
+
+      if (user.role === 'MONITOR') {
+        const res = await api.get('/chat/alunos');
+        setAvailableContacts(res.data);
+      } else {
+        const res = await api.get('/chat/monitors');
+        setAvailableContacts(res.data);
+      }
+      setShowContactModal(true);
+    } catch (error) {
+      console.error('Erro ao carregar contatos disponíveis:', error);
+      alert('Erro ao carregar lista de contatos');
+    }
+  };
 
   useEffect(() => {
     if (selectedContact) {
@@ -76,6 +127,7 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
         senderId: msg.sender?.id || msg.usuario_id || msg.senderId,
         senderName: msg.sender?.nome || msg.usuario_nome || (msg.senderId !== currentUserId ? selectedContact?.nome : 'Eu'),
         content: msg.content,
+        arquivoUrl: msg.arquivoUrl,
         timestamp: msg.timestamp
       })).reverse();
 
@@ -91,32 +143,47 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
     }
   }, [messages]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !selectedContact) return;
+    if ((!inputText.trim() && !selectedFile) || !selectedContact) return;
 
-    const msg: ChatMessage = {
-      type: 'CHAT',
-      senderId: currentUserId!,
-      receiverId: selectedContact.id,
-      content: inputText,
-    };
+    try {
+      let arquivoUrl = '';
+      if (selectedFile) {
+        setIsUploading(true);
+        arquivoUrl = await storageService.uploadFile(selectedFile, 'chat');
+      }
 
-    chatService.sendMessage(msg);
+      const msg: ChatMessage = {
+        type: 'CHAT',
+        senderId: currentUserId!,
+        receiverId: selectedContact.id,
+        content: inputText,
+        arquivoUrl: arquivoUrl,
+      };
 
-    setMessages((prev) => [...prev, {
-      id: Date.now(),
-      senderId: currentUserId!,
-      content: inputText,
-      timestamp: new Date().toISOString()
-    }]);
+      chatService.sendMessage(msg);
 
-    setInputText('');
+      setMessages((prev) => [...prev, {
+        id: Date.now(),
+        senderId: currentUserId!,
+        content: inputText,
+        arquivoUrl: arquivoUrl,
+        timestamp: new Date().toISOString()
+      }]);
+
+      setInputText('');
+      setSelectedFile(null);
+    } catch (error) {
+      console.error('DETALHES DO ERRO NO CHAT:', error);
+      alert(`Erro ao enviar mensagem: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
     <Container fluid className="p-0">
-      {/* Altura fixa para o container principal para evitar que a página inteira role */}
       <Row className="g-0" style={{ height: '600px', maxHeight: '80vh' }}>
         <Col md={4} className="border-end bg-light d-flex flex-column" style={{ height: '100%' }}>
           <div className="p-3 border-bottom bg-white sticky-top">
@@ -139,25 +206,32 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
                 </button>
               ))}
             </div>
+            <div className="p-3">
+              <Button
+                variant="outline-primary"
+                className="w-100"
+                onClick={handleOpenContactModal}
+              >
+                + Nova Conversa
+              </Button>
+            </div>
           </div>
         </Col>
 
         <Col md={8} className="d-flex flex-column bg-white" style={{ height: '100%' }}>
           {selectedContact ? (
             <>
-              {/* Cabeçalho fixo */}
               <div className="p-3 border-bottom d-flex align-items-center gap-3 bg-white" style={{ flexShrink: 0 }}>
                 <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedContact.nome}`} alt={selectedContact.nome} className="rounded-circle" style={{width: '40px', height: '40px'}} />
                 <h6 className="fw-bold mb-0">{selectedContact.nome}</h6>
               </div>
 
-              {/* ÁREA DE MENSAGENS COM ROLAGEM INDEPENDENTE */}
               <div
                 ref={scrollRef}
                 className="flex-grow-1 p-4 overflow-auto"
                 style={{
                   backgroundColor: '#e5ddd5',
-                  backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc도f70-73b1-11e8-101a-72dc5ef8220d.jpg")',
+                  backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc-f70-73b1-11e8-101a-72dc5ef8220d.jpg")',
                   backgroundBlendMode: 'overlay',
                   position: 'relative'
                 }}
@@ -171,6 +245,13 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
                             {msg.senderName || (selectedContact ? selectedContact.nome : 'Usuário')}
                           </div>
                         )}
+                        {msg.arquivoUrl && (
+                          <div className="mb-2">
+                            <a href={msg.arquivoUrl} target="_blank" rel="noopener noreferrer">
+                              <img src={msg.arquivoUrl} alt="Anexo" style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                            </a>
+                          </div>
+                        )}
                         <div className="small">{msg.content}</div>
                         <div className="text-end mt-1" style={{ fontSize: '0.7rem', opacity: 0.8 }}>
                           {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -181,16 +262,49 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
                 </div>
               </div>
 
-              {/* Rodapé fixo */}
-              <Form onSubmit={handleSendMessage} className="p-3 border-top bg-light d-flex gap-2" style={{ flexShrink: 0 }}>
-                <Form.Control
-                  type="text"
-                  placeholder="Digite sua mensagem..."
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  className="shadow-sm"
-                />
-                <Button type="submit" variant="primary" className="px-4">Enviar</Button>
+              <Form onSubmit={handleSendMessage} className="p-3 border-top bg-light d-flex gap-2 align-items-end" style={{ flexShrink: 0 }}>
+                <div className="d-flex gap-2 align-items-end flex-grow-1">
+                  <div className="position-relative">
+                    <Form.Control
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={e => setSelectedFile(e.target.files ? e.target.files[0] : null)}
+                    />
+                    <Button
+                      variant="outline-secondary"
+                      className="rounded-circle p-2"
+                      style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onClick={() => document.querySelector('input[type="file"]')?.click()}
+                    >
+                      📎
+                    </Button>
+                  </div>
+                  <Form.Control
+                    type="text"
+                    placeholder={isUploading ? "Enviando arquivo..." : "Digite sua mensagem..."}
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    className="shadow-sm"
+                    disabled={isUploading}
+                  />
+                </div>
+                <div className="d-flex flex-column align-items-center gap-1">
+                  {selectedFile && (
+                    <div className="badge bg-info text-dark" style={{ fontSize: '0.6rem', whiteSpace: 'nowrap' }}>
+                      📷 {selectedFile.name.substring(0, 10)}...
+                      <button
+                        type="button"
+                        className="btn-close ms-1"
+                        style={{ fontSize: '0.5rem', padding: '0' }}
+                        onClick={() => setSelectedFile(null)}
+                      ></button>
+                    </div>
+                  )}
+                  <Button type="submit" variant="primary" className="px-4" disabled={isUploading}>
+                    {isUploading ? '...' : 'Enviar'}
+                  </Button>
+                </div>
               </Form>
             </>
           ) : (
@@ -202,6 +316,33 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
           )}
         </Col>
       </Row>
+
+      <Modal show={showContactModal} onHide={() => setShowContactModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title className="fw-bold">Nova Conversa</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="list-group">
+            {availableContacts.map(contact => (
+              <button
+                key={contact.id}
+                onClick={() => {
+                  setSelectedContact(contact);
+                  setShowContactModal(false);
+                }}
+                className="list-group-item list-group-item-action d-flex align-items-center gap-3 p-3"
+                style={{ cursor: 'pointer' }}
+              >
+                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${contact.nome}`} alt={contact.nome} className="rounded-circle" style={{width: '35px', height: '35px'}} />
+                <div className="text-start">
+                  <div className="fw-bold">{contact.nome}</div>
+                  <small className="text-muted">{contact.email}</small>
+                </div>
+              </button>
+            ))}
+          </div>
+        </Modal.Body>
+      </Modal>
     </Container>
   );
 };

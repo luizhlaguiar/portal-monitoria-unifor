@@ -37,6 +37,7 @@ public class ChatService {
             message.setSender(sender);
             message.setReceiver(receiver);
             message.setContent(chatMessage.getContent());
+            message.setArquivoUrl(chatMessage.getArquivoUrl());
             message.setTimestamp(LocalDateTime.now());
             message.setRead(false);
 
@@ -61,6 +62,7 @@ public class ChatService {
         message.setSender(sender);
         message.setReceiver(receiver);
         message.setContent(chatMessage.getContent());
+        message.setArquivoUrl(chatMessage.getArquivoUrl());
         message.setTimestamp(LocalDateTime.now());
         message.setRead(false);
 
@@ -77,12 +79,40 @@ public class ChatService {
         return messageRepository.findByConversationIdOrderByTimestampDesc(conversation.getId(), PageRequest.of(page, size));
     }
 
-    public List<User> getConversationsForMonitor(Integer monitorId) {
-        User monitor = userRepository.findById(monitorId)
-                .orElseThrow(() -> new RuntimeException("Monitor not found"));
+    public List<UserDTO> getConversationsForUser(Integer userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return conversationRepository.findByMonitor(monitor).stream()
-                .map(Conversation::getUser)
+        if ("MONITOR".equals(user.getRole())) {
+            return conversationRepository.findByMonitor(user).stream()
+                    .map(Conversation::getUser)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .map(u -> new UserDTO(u.getId(), u.getNome(), u.getEmail()))
+                    .collect(Collectors.toList());
+        } else {
+            return conversationRepository.findByUser(user).stream()
+                    .map(Conversation::getMonitor)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .map(u -> new UserDTO(u.getId(), u.getNome(), u.getEmail()))
+                    .collect(Collectors.toList());
+        }
+    }
+
+    public List<UserDTO> getConversationsForMonitor(Integer monitorId) {
+        return getConversationsForUser(monitorId);
+    }
+
+    public List<UserDTO> getAvailableMonitors() {
+        return userRepository.findByRole("MONITOR").stream()
+                .map(u -> new UserDTO(u.getId(), u.getNome(), u.getEmail()))
+                .collect(Collectors.toList());
+    }
+
+    public List<UserDTO> getAvailableAlunos() {
+        return userRepository.findByRole("ALUNO").stream()
+                .map(u -> new UserDTO(u.getId(), u.getNome(), u.getEmail()))
                 .collect(Collectors.toList());
     }
 
