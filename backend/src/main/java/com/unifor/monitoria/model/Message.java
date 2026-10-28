@@ -25,6 +25,7 @@ public class Message {
 
     @Column(columnDefinition = "LONGTEXT")
     private String content;
+    private String arquivoUrl;
 
     private LocalDateTime timestamp;
 
@@ -48,9 +49,12 @@ public class Message {
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
 
+    public String getArquivoUrl() { return arquivoUrl; }
+    public void setArquivoUrl(String arquivoUrl) { this.arquivoUrl = arquivoUrl; }
+
     public LocalDateTime getTimestamp() { return timestamp; }
     public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
 
     public boolean isRead() { return isRead; }
-    public void setRead(boolean read) { isRead = read; }
+    public void setRead(boolean read) { isRead = read; } 
 }

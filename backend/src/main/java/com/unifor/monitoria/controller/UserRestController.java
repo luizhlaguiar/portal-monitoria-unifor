@@ -22,7 +22,7 @@ public class UserRestController {
             return ResponseEntity.ok(users);
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.internalServerError().build(); 
         }
     }
 }

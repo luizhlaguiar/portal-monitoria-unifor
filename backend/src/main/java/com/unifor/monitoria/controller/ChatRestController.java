@@ -2,6 +2,7 @@ package com.unifor.monitoria.controller;
 
 import com.unifor.monitoria.model.Message;
 import com.unifor.monitoria.model.User;
+import com.unifor.monitoria.model.UserDTO;
 import com.unifor.monitoria.service.ChatService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -28,12 +29,35 @@ public class ChatRestController {
         }
     }
 
-    @GetMapping("/conversations/{monitorId}")
-    public ResponseEntity<List<User>> getConversations(@PathVariable Integer monitorId) {
+    @GetMapping("/conversations/{userId}")
+    public ResponseEntity<List<UserDTO>> getConversations(@PathVariable Integer userId) {
         try {
-            List<User> users = chatService.getConversationsForMonitor(monitorId);
+            List<UserDTO> users = chatService.getConversationsForUser(userId);
             return ResponseEntity.ok(users);
         } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/monitors")
+    public ResponseEntity<List<UserDTO>> getMonitors() {
+        try {
+            List<UserDTO> monitors = chatService.getAvailableMonitors();
+            return ResponseEntity.ok(monitors);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/alunos")
+    public ResponseEntity<List<UserDTO>> getAlunos() {
+        try {
+            List<UserDTO> alunos = chatService.getAvailableAlunos();
+            return ResponseEntity.ok(alunos);
+        } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.internalServerError().build();
         }
     }

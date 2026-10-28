@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Container, Row, Col, Form, Button, Modal, ListGroup } from 'react-bootstrap';
 import chatService, { ChatMessage } from '../services/ChatService';
 import api from '../services/api';
+import { storageService } from '../services/storageService';
+import './Forum.css';
 
 interface Contact {
   id: number;
@@ -15,6 +17,7 @@ interface MessageUI {
   senderId: number;
   senderName?: string;
   content: string;
+  arquivoUrl?: string;
   timestamp: string;
   isImage?: boolean;
   isPdf?: boolean;
@@ -51,6 +54,11 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const selectedContactRef = useRef<Contact | null>(null);
+
+  useEffect(() => {
+    selectedContactRef.current = selectedContact;
+  }, [selectedContact]);
 
   // Persistir contatos no localStorage sempre que houver nova adição
   useEffect(() => {
@@ -91,6 +99,26 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
       }]);
     });
   }, [currentUserId]);
+
+  const handleOpenContactModal = async () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (!userStr) return;
+      const user = JSON.parse(userStr);
+
+      if (user.role === 'MONITOR') {
+        const res = await api.get('/chat/alunos');
+        setAvailableContacts(res.data);
+      } else {
+        const res = await api.get('/chat/monitors');
+        setAvailableContacts(res.data);
+      }
+      setShowContactModal(true);
+    } catch (error) {
+      console.error('Erro ao carregar contatos disponíveis:', error);
+      alert('Erro ao carregar lista de contatos');
+    }
+  };
 
   useEffect(() => {
     if (selectedContact && currentUserId) {
@@ -216,7 +244,13 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
       content: contentToSend,
     };
 
-    chatService.sendMessage(msg);
+      const msg: ChatMessage = {
+        type: 'CHAT',
+        senderId: currentUserId!,
+        receiverId: selectedContact.id,
+        content: inputText,
+        arquivoUrl: arquivoUrl,
+      };
 
     setMessages((prev) => [...prev, {
       id: Date.now(),
@@ -290,20 +324,16 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
                 className={`list-group-item list-group-item-action d-flex align-items-center gap-3 p-3 border-0 ${selectedContact?.id === contact.id ? 'bg-primary text-white' : ''}`}
                 style={{ cursor: 'pointer' }}
               >
-                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${contact.nome}`} alt={contact.nome} className="rounded-circle" style={{width: '45px', height: '45px', border: '2px solid #eee'}} />
-                <div className="text-start">
-                  <div className="fw-bold">{contact.nome}</div>
-                  <small className={selectedContact?.id === contact.id ? 'text-white-50' : 'text-muted'}>Clique para conversar</small>
+                + Nova Conversa
+              </Button>
                 </div>
-              </button>
-            ))}
           </div>
         </Col>
 
         <Col md={8} className="d-flex flex-column bg-white" style={{ height: '600px' }}>
           {selectedContact ? (
             <>
-              <div className="p-3 border-bottom d-flex align-items-center gap-3 bg-white sticky-top">
+              <div className="p-3 border-bottom d-flex align-items-center gap-3 bg-white" style={{ flexShrink: 0 }}>
                 <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedContact.nome}`} alt={selectedContact.nome} className="rounded-circle" style={{width: '40px', height: '40px'}} />
                 <h6 className="fw-bold mb-0">{selectedContact.nome}</h6>
               </div>
@@ -311,7 +341,12 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
               <div
                 ref={scrollRef}
                 className="flex-grow-1 p-4 overflow-auto"
-                style={{ backgroundColor: '#e5ddd5', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e8-101a-72dc5ef8220d.jpg")', backgroundBlendMode: 'overlay' }}
+                style={{
+                  backgroundColor: '#e5ddd5',
+                  backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc-f70-73b1-11e8-101a-72dc5ef8220d.jpg")',
+                  backgroundBlendMode: 'overlay',
+                  position: 'relative'
+                }}
               >
                 <div className="d-flex flex-column gap-3">
                   {messages.map((msg, index) => {
@@ -484,7 +519,7 @@ const ChatInterface: React.FC<{ contacts: Contact[], currentUserId: number | nul
           <Button variant="primary" onClick={handleStartConversation} disabled={!selectedUserId}>Começar a Conversar</Button>
         </Modal.Footer>
       </Modal>
-    </Container>
+    </Container >
   );
 };
 
