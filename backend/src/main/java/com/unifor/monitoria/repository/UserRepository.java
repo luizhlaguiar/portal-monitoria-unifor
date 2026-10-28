@@ -7,5 +7,9 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Integer> {
     Optional<User> findByMatricula(String matricula);
+<<<<<<< HEAD
     List<User> findByRole(String role); 
+=======
+    List<User> findByRole(String role);
+>>>>>>> c5c2ad548415447bc4d01c4fe32550bcde3a5602
 }

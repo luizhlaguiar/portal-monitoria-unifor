@@ -3,6 +3,11 @@ package com.unifor.monitoria.service;
 import com.unifor.monitoria.model.*;
 import com.unifor.monitoria.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+<<<<<<< HEAD
+=======
+import org.springframework.data.domain.*;
+import org.springframework.scheduling.annotation.Async;
+>>>>>>> c5c2ad548415447bc4d01c4fe32550bcde3a5602
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -19,6 +24,34 @@ public class ChatService {
     @Autowired
     private UserRepository userRepository;
 
+    @Async
+    public void saveMessageAsync(ChatMessage chatMessage) {
+        System.out.println(">>> [ChatService ASYNC] Iniciando salvamento no banco para a mensagem: " + chatMessage.getContent());
+        try {
+            User sender = userRepository.findById(chatMessage.getSenderId())
+                    .orElseThrow(() -> new RuntimeException("Sender not found: " + chatMessage.getSenderId()));
+            User receiver = userRepository.findById(chatMessage.getReceiverId())
+                    .orElseThrow(() -> new RuntimeException("Receiver not found: " + chatMessage.getReceiverId()));
+
+            Conversation conversation = getOrCreateConversation(sender, receiver);
+
+            Message message = new Message();
+            message.setConversation(conversation);
+            message.setSender(sender);
+            message.setReceiver(receiver);
+            message.setContent(chatMessage.getContent());
+            message.setArquivoUrl(chatMessage.getArquivoUrl());
+            message.setTimestamp(LocalDateTime.now());
+            message.setRead(false);
+
+            messageRepository.save(message);
+            System.out.println(">>> [ChatService ASYNC] SUCESSO: Mensagem salva no MySQL ID: " + message.getId());
+        } catch (Exception e) {
+            System.err.println(">>> [ChatService ASYNC] ERRO ao salvar mensagem: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
     public Message saveMessage(ChatMessage chatMessage) {
         User sender = userRepository.findById(chatMessage.getSenderId())
                 .orElseThrow(() -> new RuntimeException("Sender not found"));
@@ -32,6 +65,7 @@ public class ChatService {
         message.setSender(sender);
         message.setReceiver(receiver);
         message.setContent(chatMessage.getContent());
+        message.setArquivoUrl(chatMessage.getArquivoUrl());
         message.setTimestamp(LocalDateTime.now());
         message.setRead(false);
 
@@ -53,12 +87,40 @@ public class ChatService {
         return messageRepository.findByConversationIdOrderByTimestampAsc(convOpt.get().getId());
     }
 
-    public List<User> getConversationsForMonitor(Integer monitorId) {
-        User monitor = userRepository.findById(monitorId)
-                .orElseThrow(() -> new RuntimeException("Monitor not found"));
+    public List<UserDTO> getConversationsForUser(Integer userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return conversationRepository.findByMonitor(monitor).stream()
-                .map(Conversation::getUser)
+        if ("MONITOR".equals(user.getRole())) {
+            return conversationRepository.findByMonitor(user).stream()
+                    .map(Conversation::getUser)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .map(u -> new UserDTO(u.getId(), u.getNome(), u.getEmail()))
+                    .collect(Collectors.toList());
+        } else {
+            return conversationRepository.findByUser(user).stream()
+                    .map(Conversation::getMonitor)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .map(u -> new UserDTO(u.getId(), u.getNome(), u.getEmail()))
+                    .collect(Collectors.toList());
+        }
+    }
+
+    public List<UserDTO> getConversationsForMonitor(Integer monitorId) {
+        return getConversationsForUser(monitorId);
+    }
+
+    public List<UserDTO> getAvailableMonitors() {
+        return userRepository.findByRole("MONITOR").stream()
+                .map(u -> new UserDTO(u.getId(), u.getNome(), u.getEmail()))
+                .collect(Collectors.toList());
+    }
+
+    public List<UserDTO> getAvailableAlunos() {
+        return userRepository.findByRole("ALUNO").stream()
+                .map(u -> new UserDTO(u.getId(), u.getNome(), u.getEmail()))
                 .collect(Collectors.toList());
     }
 

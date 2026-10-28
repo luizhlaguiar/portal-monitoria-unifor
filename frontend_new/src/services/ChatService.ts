@@ -84,4 +84,4 @@ class ChatService {
     }
 }
 
-export default new ChatService();
+export default new ChatService(); 
