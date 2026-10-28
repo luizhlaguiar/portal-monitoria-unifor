@@ -15,3 +15,4 @@ public interface ConversationRepository extends JpaRepository<Conversation, Inte
 
     List<Conversation> findByMonitor(User monitor);
 }
+ 

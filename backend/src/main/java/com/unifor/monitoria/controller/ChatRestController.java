@@ -67,4 +67,4 @@ public class ChatRestController {
         chatService.markAsRead(messageId);
         return ResponseEntity.ok().build();
     }
-}
+} 
