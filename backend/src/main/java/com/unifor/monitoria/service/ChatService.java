@@ -3,7 +3,6 @@ package com.unifor.monitoria.service;
 import com.unifor.monitoria.model.*;
 import com.unifor.monitoria.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -39,14 +38,19 @@ public class ChatService {
         return messageRepository.save(message);
     }
 
-    public Page<Message> getChatHistory(Integer userId, Integer receiverId, int page, int size) {
+    public List<Message> getChatHistoryList(Integer userId, Integer receiverId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         User receiver = userRepository.findById(receiverId)
                 .orElseThrow(() -> new RuntimeException("Receiver not found"));
 
-        Conversation conversation = getOrCreateConversation(user, receiver);
-        return messageRepository.findByConversationIdOrderByTimestampDesc(conversation.getId(), PageRequest.of(page, size));
+        Optional<Conversation> convOpt = conversationRepository.findBetweenUsers(user, receiver);
+
+        if (!convOpt.isPresent()) {
+            return Collections.emptyList();
+        }
+
+        return messageRepository.findByConversationIdOrderByTimestampAsc(convOpt.get().getId());
     }
 
     public List<User> getConversationsForMonitor(Integer monitorId) {
@@ -66,13 +70,12 @@ public class ChatService {
     }
 
     private Conversation getOrCreateConversation(User user, User monitor) {
-        return conversationRepository.findByUserAndMonitor(user, monitor)
-                .orElseGet(() -> conversationRepository.findByUserAndMonitor(monitor, user)
+        return conversationRepository.findBetweenUsers(user, monitor)
                 .orElseGet(() -> {
                     Conversation conv = new Conversation();
                     conv.setUser(user);
                     conv.setMonitor(monitor);
                     return conversationRepository.save(conv);
-                }));
+                });
     }
 }

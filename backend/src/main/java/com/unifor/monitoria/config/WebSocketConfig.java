@@ -9,6 +9,14 @@ import org.springframework.web.socket.config.annotation.*;
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
+    public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
+        // Aumenta o limite para 10 MB (em bytes) para suportar arquivos pesados em Base64
+        registration.setMessageSizeLimit(10 * 1024 * 1024); // 10MB
+        registration.setSendBufferSizeLimit(10 * 1024 * 1024); // 10MB
+        registration.setSendTimeLimit(20000);
+    }
+
+    @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         config.enableSimpleBroker("/topic", "/queue");
         config.setApplicationDestinationPrefixes("/app");

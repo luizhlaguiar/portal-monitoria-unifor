@@ -4,7 +4,6 @@ import com.unifor.monitoria.model.Message;
 import com.unifor.monitoria.model.User;
 import com.unifor.monitoria.service.ChatService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,16 +16,14 @@ public class ChatRestController {
     private ChatService chatService;
 
     @GetMapping("/history/{userId}/{receiverId}")
-    public ResponseEntity<Page<Message>> getHistory(
+    public ResponseEntity<List<Message>> getHistory(
             @PathVariable Integer userId,
-            @PathVariable Integer receiverId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-
+            @PathVariable Integer receiverId) {
         try {
-            Page<Message> history = chatService.getChatHistory(userId, receiverId, page, size);
+            List<Message> history = chatService.getChatHistoryList(userId, receiverId);
             return ResponseEntity.ok(history);
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.internalServerError().build();
         }
     }
