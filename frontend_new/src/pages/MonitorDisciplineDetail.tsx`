@@ -1,0 +1,630 @@
+import React, { useState, useEffect } from 'react';
+import { Container, Row, Col, Card, Button, Table, Tabs, Tab, Badge, Modal, Form } from 'react-bootstrap';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import api from '../services/api';
+import { storageService } from '../services/storageService';
+import ActivityModal from '../components/ActivityModal';
+import Forum from "./Forum";
+import ChatInterface from "./ChatInterface";
+import './Dashboard.css';
+
+interface Schedule {
+  id: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  room: string;
+  monitoringSession: {
+    monitor: {
+      id: number;
+      nome: string;
+    };
+  };
+}
+
+interface Activity {
+  id: number;
+  titulo: string;
+  prazo: string;
+  descricao: string;
+  arquivoUrl?: string;
+}
+
+interface Monitor {
+  id: number;
+  nome: string;
+  email: string;
+}
+
+interface Contact {
+  id: number;
+  nome: string;
+  email: string;
+}
+
+const MonitorDisciplineDetail: React.FC = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  const [monitors, setMonitors] = useState<Monitor[]>([]);
+  const [schedule, setSchedule] = useState<Schedule[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [conversations, setConversations] = useState<Contact[]>([]);
+
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [newSchedule, setNewSchedule] = useState({
+    date: '',
+    startTime: '',
+    endTime: '',
+    room: ''
+  });
+
+  const [showEditScheduleModal, setShowEditScheduleModal] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<Partial<Schedule>>({});
+
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [attendanceList, setAttendanceList] = useState<{id: number, nome: string, email: string, matricula: string, present: boolean}[]>([]);
+  const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
+  const [isAttendanceLocked, setIsAttendanceLocked] = useState(false);
+
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [newActivity, setNewActivity] = useState({
+    titulo: '',
+    prazo: '',
+    descricao: '',
+    noDeadline: false,
+    arquivoUrl: ''
+  });
+  const [uploadingActivityFile, setUploadingActivityFile] = useState(false);
+
+  const fetchAllDataFixed = async () => {
+    try {
+      const [monRes, schRes, actRes] = await Promise.all([
+        api.get(`/disciplines/${id}/monitors`),
+        api.get(`/disciplines/${id}/schedules`),
+        api.get(`/disciplines/${id}/activities`),
+      ]);
+      setMonitors(Array.isArray(monRes.data) ? monRes.data : []);
+      setSchedule(Array.isArray(schRes.data) ? schRes.data : []);
+      setActivities(Array.isArray(actRes.data) ? actRes.data : []);
+    } catch (error) {
+      console.error('Erro ao carregar dados da disciplina:', error);
+    }
+  };
+
+  const fetchConversations = async () => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const res = await api.get(`/chat/conversations/${user.id}`);
+      setConversations(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error('Erro ao carregar conversas do monitor:', error);
+      setConversations([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllDataFixed();
+    fetchConversations();
+  }, [id]);
+
+  const handleAddSchedule = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newSchedule.date || !newSchedule.startTime || !newSchedule.endTime || !newSchedule.room.trim()) {
+      alert('Por favor, preencha todos os campos.');
+      return;
+    }
+
+    const today = new Date();
+    const selectedDate = new Date(newSchedule.date + 'T00:00:00');
+    const now = new Date();
+
+    if (selectedDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+      alert('Não é permitido agendar monitorias para datas passadas.');
+      return;
+    }
+
+    if (selectedDate.toDateString() === now.toDateString()) {
+      const [startHour, startMin] = newSchedule.startTime.split(':').map(Number);
+      const currentHour = now.getHours();
+      const currentMin = now.getMinutes();
+      if (startHour < currentHour || (startHour === currentHour && startMin < currentMin)) {
+        alert('Não é permitido agendar monitorias para horários que já passaram no dia de hoje.');
+        return;
+      }
+    }
+
+    if (newSchedule.startTime && newSchedule.endTime) {
+      const [startH, startM] = newSchedule.startTime.split(':').map(Number);
+      const [endH, endM] = newSchedule.endTime.split(':').map(Number);
+      const startTotalMinutes = startH * 60 + startM;
+      const endTotalMinutes = endH * 60 + endM;
+      if (endTotalMinutes <= startTotalMinutes) {
+        alert('O horário de término deve ser posterior ao horário de início.');
+        return;
+      }
+    }
+
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const sessionRes = await api.get(`/disciplines/${id}/session/${user.id}`);
+      const sessionId = sessionRes.data;
+      await api.post('/schedules', {
+        ...newSchedule,
+        monitoringSession: { id: sessionId }
+      }, { headers: { 'Content-Type': 'application/json' } });
+      await fetchAllDataFixed();
+      setShowScheduleModal(false);
+      setNewSchedule({ date: '', startTime: '', endTime: '', room: '' });
+    } catch (error) {
+      alert('Erro ao adicionar horário.');
+    }
+  };
+
+  const handleEditClick = (schedule: Schedule) => {
+    setEditingSchedule(schedule);
+    setShowEditScheduleModal(true);
+  };
+
+  const handleUpdateSchedule = async () => {
+    try {
+      await api.put(`/schedules/${editingSchedule.id}`, editingSchedule);
+      await fetchAllDataFixed();
+      setShowEditScheduleModal(false);
+      setEditingSchedule({});
+    } catch (error) {
+      alert('Erro ao atualizar horário');
+    }
+  };
+
+  const handleRemoveSchedule = async (scheduleId: number) => {
+    try {
+      await api.delete(`/schedules/${scheduleId}`);
+      await fetchAllDataFixed();
+    } catch (error) {
+      alert('Erro ao remover horário');
+    }
+  };
+
+  const handleOpenAttendance = async (scheduleId: number) => {
+    try {
+      const res = await api.get(`/presencas/horario/${scheduleId}`);
+      const presencas = res.data.map((p: any) => p.user.id);
+      const hasAttendance = presencas.length > 0;
+      setIsAttendanceLocked(hasAttendance);
+
+      const alunosRes = await api.get(`/presencas/horario/${scheduleId}/alunos`);
+      const alunos = alunosRes.data.map((aluno: any) => ({
+        id: aluno.id,
+        nome: aluno.nome,
+        email: aluno.email,
+        matricula: aluno.matricula,
+        present: presencas.includes(aluno.id)
+      })).sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+      setAttendanceList(alunos);
+      setSelectedScheduleId(scheduleId);
+      setShowAttendanceModal(true);
+    } catch (error) {
+      alert('Erro ao carregar lista de alunos');
+    }
+  };
+
+  const handleSaveAttendance = async () => {
+    if (!selectedScheduleId) return;
+    try {
+      const presentIds = attendanceList.filter(a => a.present).map(a => a.id);
+      await api.post('/presencas/registrar', {
+        scheduleId: selectedScheduleId,
+        userIds: presentIds
+      });
+      alert('Presença salva com sucesso!');
+      setShowAttendanceModal(false);
+    } catch (error) {
+      alert('Erro ao salvar presença');
+    }
+  };
+
+  const handleAddActivity = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    try {
+      const activityData = {
+        ...newActivity,
+        prazo: newActivity.noDeadline ? null : newActivity.prazo,
+        discipline: { id: Number(id) }
+      };
+      await api.post('/activities', activityData);
+      await fetchAllDataFixed();
+      setShowActivityModal(false);
+      setNewActivity({ titulo: '', prazo: '', descricao: '', noDeadline: false, arquivoUrl: '' });
+    } catch (error) {
+      alert('Erro ao adicionar atividade');
+    }
+  };
+
+  const handleActivityFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingActivityFile(true);
+      const url = await storageService.uploadFile(file, 'atividades');
+      setNewActivity(prev => ({ ...prev, arquivoUrl: url }));
+      alert('Arquivo enviado com sucesso!');
+    } catch (error) {
+      alert('Erro ao enviar arquivo.');
+    } finally {
+      setUploadingActivityFile(false);
+    }
+  };
+
+  const handleRemoveActivity = async (activityId: number) => {
+    try {
+      await api.delete(`/activities/${activityId}`);
+      await fetchAllDataFixed();
+    } catch (error) {
+      alert('Erro ao remover atividade');
+    }
+  };
+
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  return (
+    <Container className="py-5">
+      <nav aria-label="breadcrumb" className="mb-4">
+        <ol className="breadcrumb small font-monospace">
+          <li className="breadcrumb-item"><Link to="/monitor-dashboard" className="text-decoration-none">Painel do Monitor</Link></li>
+          <li className="breadcrumb-item active">Gestão de Disciplina</li>
+        </ol>
+      </nav>
+
+      <Card className="border-0 shadow-sm mb-5 overflow-hidden">
+        <div className="banner-disciplina" style={{ backgroundColor: '#4e73df', height: '120px' }}>
+          <div className="banner-overlay"></div>
+          <div className="banner-text text-end p-3 text-white fw-bold">
+            <span className="opacity-75 small font-monospace">ID: {id}</span>
+            <div className="h4 mb-0">Gestão da Disciplina</div>
+          </div>
+        </div>
+        <Card.Body className="p-4 d-flex justify-content-between align-items-center">
+          <div>
+            <h3 className="fw-bold mb-1">Painel Administrativo</h3>
+            <p className="text-muted mb-0">Modo Editor: Você pode alterar horários e atividades.</p>
+          </div>
+          <Button variant="dark" className="fw-bold px-4" onClick={() => navigate('/monitor-dashboard')}>Voltar</Button>
+        </Card.Body>
+      </Card>
+
+      <Tabs defaultActiveKey="monitores" id="monitor-discipline-tabs" className="mb-4 custom-tabs">
+        <Tab eventKey="monitores" title="Monitores">
+          <div className="p-4 bg-white border rounded shadow-sm">
+            <Row className="g-4">
+              {monitors && monitors.map(mon => (
+                <Col key={mon.id} md={6}>
+                  <Card className="border-0 shadow-sm p-3 monitor-card-modern">
+                    <div className="d-flex align-items-center gap-3">
+                      <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${mon.nome}`} alt={mon.nome} className="rounded-circle" style={{width: '60px', height: '60px', border: '2px solid #eee'}} />
+                      <div className="flex-grow-1">
+                        <h6 className="fw-bold mb-0">{mon.nome}</h6>
+                        <small className="text-muted">{mon.email}</small>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+              ))}
+              {(monitors || []).length === 0 && <Col className="text-center w-100"><p className="text-muted">Nenhum monitor encontrado.</p></Col>}
+            </Row>
+          </div>
+        </Tab>
+        <Tab eventKey="horarios" title="Próximos Horários">
+          <div className="p-4 bg-white border rounded shadow-sm">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h5 className="fw-bold mb-0">Gerenciar Horários de Atendimento</h5>
+              <Button variant="dark" size="sm" onClick={() => setShowScheduleModal(true)}>+ Adicionar Horário</Button>
+            </div>
+            <Table responsive hover className="align-middle">
+              <thead className="bg-light text-muted small">
+                <tr className="text-center">
+                  <th className="border-0">Data</th>
+                  <th className="border-0">Início</th>
+                  <th className="border-0">Fim</th>
+                  <th className="border-0">Sala</th>
+                  <th className="border-0">Monitor Responsável</th>
+                  <th className="border-0 text-center">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="text-center small">
+                {schedule && schedule.filter(item => {
+                  const now = new Date();
+                  const itemDate = new Date(item.date + 'T00:00:00');
+                  if (itemDate > now) return true;
+                  if (itemDate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) return false;
+                  const [startHour, startMin] = item.startTime.split(':').map(Number);
+                  const currentHour = now.getHours();
+                  const currentMin = now.getMinutes();
+                  return startHour > currentHour || (startHour === currentHour && startMin >= currentMin);
+                }).map(item => (
+                  <tr key={item.id} className="border-bottom">
+                    <td className="fw-bold">{item.date}</td>
+                    <td>{item.startTime}</td>
+                    <td>{item.endTime}</td>
+                    <td>{item.room}</td>
+                    <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
+                    <td className="text-center">
+                      <div className="d-flex gap-2 justify-content-center">
+                        <Button variant="outline-primary" size="sm" onClick={() => handleEditClick(item)}>Editar</Button>
+                        <Button variant="outline-danger" size="sm" onClick={() => handleRemoveSchedule(item.id)}>Remover</Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {(!schedule || schedule.filter(s => new Date(s.date) >= new Date()).length === 0) && <tr><td colSpan={6} className="text-center py-3 text-muted">Nenhum horário futuro cadastrado.</td></tr>}
+              </tbody>
+            </Table>
+          </div>
+        </Tab>
+        <Tab eventKey="passados" title="Monitorias Passadas">
+          <div className="p-4 bg-white border rounded shadow-sm">
+            <Table responsive hover className="align-middle">
+              <thead className="bg-light text-muted small">
+                <tr className="text-center">
+                  <th className="border-0">Data</th>
+                  <th className="border-0">Início</th>
+                  <th className="border-0">Fim</th>
+                  <th className="border-0">Sala</th>
+                  <th className="border-0">Monitor Responsável</th>
+                  <th className="border-0 text-center">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="text-center small">
+                {schedule && schedule.filter(item => {
+                  const now = new Date();
+                  const itemDate = new Date(item.date + 'T00:00:00');
+                  if (itemDate > now) return false;
+                  if (itemDate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) return true;
+                  const [startHour, startMin] = item.startTime.split(':').map(Number);
+                  const currentHour = now.getHours();
+                  const currentMin = now.getMinutes();
+                  return startHour < currentHour || (startHour === currentHour && startMin < currentMin);
+                }).map(item => (
+                  <tr key={item.id} className="border-bottom">
+                    <td className="fw-bold">{item.date}</td>
+                    <td>{item.startTime}</td>
+                    <td>{item.endTime}</td>
+                    <td>{item.room}</td>
+                    <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
+                    <td className="text-center">
+                      <Button variant="outline-success" size="sm" onClick={() => handleOpenAttendance(item.id)}>
+                        Ver Chamada
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {(!schedule || schedule.filter(s => new Date(s.date) < new Date()).length === 0) && <tr><td colSpan={6} className="text-center py-3 text-muted">Nenhuma monitoria passada encontrada.</td></tr>}
+              </tbody>
+            </Table>
+          </div>
+        </Tab>
+        <Tab eventKey="atividades" title="Atividades">
+          <div className="p-4 bg-white border rounded shadow-sm">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h5 className="fw-bold mb-0">Gerenciar Atividades de Fixação</h5>
+              <Button variant="dark" size="sm" onClick={() => setShowActivityModal(true)}>+ Nova Atividade</Button>
+            </div>
+            <Row className="g-3">
+              {activities && activities.map(act => (
+                <Col xs={12} key={act.id}>
+                  <Card className="border-0 shadow-sm p-3 mb-2">
+                    <div className="d-flex justify-content-between align-items-start">
+                      <div className="flex-grow-1">
+                        <h6 className="fw-bold mb-1">{act.titulo}</h6>
+                        <p className="small text-muted mb-0">Prazo: {act.prazo}</p>
+                      </div>
+                      <Button variant="outline-danger" size="sm" onClick={() => handleRemoveActivity(act.id)}>Excluir</Button>
+                    </div>
+                    <p className="small text-muted mt-2">{act.descricao}</p>
+                    {act.arquivoUrl && (
+                      <div className="mt-2">
+                        <a href={act.arquivoUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2">
+                          <i className="bi bi-file-earmark-text"></i> Ver Anexo
+                        </a>
+                      </div>
+                    )}
+                  </Card>
+                </Col>
+              ))}
+              {(!activities || activities.length === 0) && <Col className="text-center w-100"><p className="small text-muted">Nenhuma atividade de fixação disponível.</p></Col>}
+            </Row>
+          </div>
+        </Tab>
+        <Tab eventKey="forum" title="Fórum">
+          <Forum disciplineId={id} />
+        </Tab>
+        <Tab eventKey="mensagens" title="Mensagens">
+          <div className="p-4 bg-white border rounded shadow-sm">
+            {conversations && conversations.length > 0 ? (
+              <ChatInterface
+                contacts={conversations}
+                currentUserId={user.id}
+              />
+            ) : (
+              <div className="text-center py-5">
+                <img src="https://cdn-icons-png.flaticon.com/512/5968/5968771.png" alt="Chat" style={{width: '100px', opacity: 0.5}} className="mb-3" />
+                <h5 className="fw-bold">Nenhuma conversa ativa</h5>
+                <p className="text-muted">Quando um aluno enviar uma mensagem, ela aparecerá aqui.</p>
+              </div>
+            )}
+          </div>
+        </Tab>
+      </Tabs>
+
+      {/* Modal Horário */}
+      <Modal show={showScheduleModal} onHide={() => setShowScheduleModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title className="fw-bold">Novo Horário de Monitoria</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form id="schedule-form" onSubmit={handleAddSchedule}>
+            <Form.Group className="mb-3">
+              <Form.Label className="small fw-bold">Data do Atendimento</Form.Label>
+              <Form.Control
+                type="date"
+                min={new Date().toISOString().split('T')[0]}
+                value={newSchedule.date}
+                onChange={(e) => {
+                  setNewSchedule({ ...newSchedule, date: e.target.value });
+                }}
+              />
+            </Form.Group>
+            <Row>
+              <Col>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small fw-bold">Início</Form.Label>
+                  <Form.Control
+                    type="time"
+                    value={newSchedule.startTime}
+                    onChange={e => setNewSchedule({...newSchedule, startTime: e.target.value})}
+                  />
+                </Form.Group>
+              </Col>
+              <Col>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small fw-bold">Fim</Form.Label>
+                  <Form.Control
+                    type="time"
+                    value={newSchedule.endTime}
+                    onChange={e => setNewSchedule({...newSchedule, endTime: e.target.value})}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+            <Form.Group className="mb-3">
+              <Form.Label className="small fw-bold">Sala/Local</Form.Label>
+              <Form.Control
+                type="text"
+                placeholder="Ex: Lab 01"
+                value={newSchedule.room}
+                onChange={e => setNewSchedule({...newSchedule, room: e.target.value})}
+              />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowScheduleModal(false)}>Cancelar</Button>
+          <Button type="submit" form="schedule-form" variant="dark">Salvar Horário</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal Editar Horário */}
+      <Modal show={showEditScheduleModal} onHide={() => setShowEditScheduleModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title className="fw-bold">Editar Horário de Monitoria</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group className="mb-3">
+              <Form.Label className="small fw-bold">Data</Form.Label>
+              <Form.Control
+                type="date"
+                value={editingSchedule.date || ''}
+                onChange={e => setEditingSchedule({...editingSchedule, date: e.target.value})}
+              />
+            </Form.Group>
+            <Row>
+              <Col>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small fw-bold">Início</Form.Label>
+                  <Form.Control
+                    type="time"
+                    value={editingSchedule.startTime || ''}
+                    onChange={e => setEditingSchedule({...editingSchedule, startTime: e.target.value})}
+                  />
+                </Form.Group>
+              </Col>
+              <Col>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small fw-bold">Fim</Form.Label>
+                  <Form.Control
+                    type="time"
+                    value={editingSchedule.endTime || ''}
+                    onChange={e => setEditingSchedule({...editingSchedule, endTime: e.target.value})}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+            <Form.Group className="mb-3">
+              <Form.Label className="small fw-bold">Sala</Form.Label>
+              <Form.Control
+                type="text"
+                value={editingSchedule.room || ''}
+                onChange={e => setEditingSchedule({...editingSchedule, room: e.target.value})}
+              />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowEditScheduleModal(false)}>Cancelar</Button>
+          <Button variant="dark" onClick={handleUpdateSchedule}>Salvar Alterações</Button>
+        </Modal.Footer>
+      </Modal>
+
+      <ActivityModal
+        show={showActivityModal}
+        onHide={() => setShowActivityModal(false)}
+        newActivity={newActivity}
+        setNewActivity={setNewActivity}
+        handleAddActivity={handleAddActivity}
+        handleActivityFileUpload={handleActivityFileUpload}
+        uploadingActivityFile={uploadingActivityFile}
+      />
+
+      {/* Modal Chamada */}
+      <Modal show={showAttendanceModal} onHide={() => setShowAttendanceModal(false)} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title className="fw-bold">Fazer Chamada de Presença</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Table responsive hover className="small">
+            <thead className="bg-light">
+              <tr className="text-center">
+                <th className="text-start">Aluno</th>
+                <th>Matrícula</th>
+                <th>E-mail</th>
+                <th>Presença</th>
+              </tr>
+            </thead>
+            <tbody className="text-center">
+              {attendanceList.map(aluno => (
+                <tr key={aluno.id} className="border-bottom">
+                  <td className="text-start">{aluno.nome}</td>
+                  <td>{aluno.matricula}</td>
+                  <td>{aluno.email}</td>
+                  <td>
+                    <Form.Check
+                      type="checkbox"
+                      checked={aluno.present}
+                      disabled={isAttendanceLocked}
+                      onChange={e => {
+                        setAttendanceList(prev => prev.map(a => a.id === aluno.id ? {...a, present: e.target.checked} : a));
+                      }}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAttendanceModal(false)}>Cancelar</Button>
+          <Button
+            variant="dark"
+            onClick={handleSaveAttendance}
+            disabled={isAttendanceLocked}
+          >
+            {isAttendanceLocked ? 'Chamada Finalizada' : 'Salvar Presença'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </Container>
+  );
+};
+
+export default MonitorDisciplineDetail;

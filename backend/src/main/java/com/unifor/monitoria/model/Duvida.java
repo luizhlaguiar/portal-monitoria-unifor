@@ -24,13 +24,14 @@ public class Duvida {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String descricao;
+    private String anexoUrl;
 
     @Enumerated(EnumType.STRING)
     private Status status = Status.PENDENTE;
 
     private LocalDateTime dataCriacao = LocalDateTime.now();
 
-    @OneToMany(mappedBy = "duvida", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "duvida", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @com.fasterxml.jackson.annotation.JsonManagedReference
     private List<RespostaDuvida> respostas;
 
@@ -52,6 +53,9 @@ public class Duvida {
 
     public String getDescricao() { return descricao; }
     public void setDescricao(String descricao) { this.descricao = descricao; }
+
+    public String getAnexoUrl() { return anexoUrl; }
+    public void setAnexoUrl(String anexoUrl) { this.anexoUrl = anexoUrl; }
 
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }

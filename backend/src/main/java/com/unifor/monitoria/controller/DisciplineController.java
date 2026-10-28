@@ -75,7 +75,12 @@ public class DisciplineController {
 
     @GetMapping("/{id}/schedules")
     public ResponseEntity<List<Schedule>> getSchedulesByHDiscipline(@PathVariable Integer id) {
-        List<Schedule> schedules = scheduleRepository.findByMonitoringSession_Discipline_Id(id);
+        System.out.println(">>> BUSCANDO HORÁRIOS PARA DISCIPLINA ID: " + id);
+        List<Schedule> schedules = scheduleRepository.findByDisciplineId(id);
+        System.out.println(">>> QUANTIDADE ENCONTRADA: " + (schedules != null ? schedules.size() : "NULL"));
+        if (schedules != null && !schedules.isEmpty()) {
+            schedules.forEach(s -> System.out.println(">>> Horário Encontrado: ID=" + s.getId() + ", Data=" + s.getDate()));
+        }
         return ResponseEntity.ok(schedules);
     }
 

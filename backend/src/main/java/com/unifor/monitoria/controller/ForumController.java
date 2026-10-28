@@ -1,6 +1,7 @@
 package com.unifor.monitoria.controller;
 
 import com.unifor.monitoria.model.*;
+import com.unifor.monitoria.repository.AnexoForumRepository;
 import com.unifor.monitoria.service.ForumService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -16,63 +17,157 @@ public class ForumController {
     @Autowired
     private ForumService forumService;
 
+    @Autowired
+    private AnexoForumRepository anexoForumRepository;
+
     @GetMapping("/{disciplinaId}")
-    public ResponseEntity<List<Duvida>> listar(@PathVariable Integer disciplinaId) {
+    public ResponseEntity<?> listar(@PathVariable Integer disciplinaId) {
         return ResponseEntity.ok(forumService.listarDuvidasPorDisciplina(disciplinaId));
     }
 
     @PostMapping("/duvida")
-    public ResponseEntity<Duvida> criar(@RequestBody Map<String, Object> payload) {
-        Integer alunoId = Integer.valueOf(payload.get("alunoId").toString());
-        Integer disciplinaId = Integer.valueOf(payload.get("disciplinaId").toString());
+    public ResponseEntity<?> criar(@RequestBody Map<String, Object> payload) {
+        if (payload == null) return ResponseEntity.badRequest().build();
+
+        Integer alunoId = parseInteger(payload.get("alunoId"));
+        Integer disciplinaId = parseInteger(payload.get("disciplinaId"));
         String titulo = (String) payload.get("titulo");
         String descricao = (String) payload.get("descricao");
 
-        return ResponseEntity.ok(forumService.criarDuvida(alunoId, disciplinaId, titulo, descricao));
+        if (alunoId == null || disciplinaId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Object novaDuvida = forumService.criarDuvida(alunoId, disciplinaId, titulo, descricao);
+        return ResponseEntity.ok(novaDuvida);
     }
 
     @PostMapping("/duvida/{duvidaId}/resposta")
-    public ResponseEntity<RespostaDuvida> responder(@PathVariable Integer duvidaId, @RequestBody Map<String, Object> payload) {
-        Integer usuarioId = Integer.valueOf(payload.get("usuarioId").toString());
-        String conteudo = (String) payload.get("conteudo");
-        Integer respostaPaiId = payload.get("respostaPaiId") != null ? Integer.valueOf(payload.get("respostaPaiId").toString()) : null;
+    public ResponseEntity<?> responder(@PathVariable Integer duvidaId, @RequestBody Map<String, Object> payload) {
+        if (payload == null) return ResponseEntity.badRequest().build();
 
-        return ResponseEntity.ok(forumService.responderDuvida(duvidaId, usuarioId, conteudo, respostaPaiId));
+        Integer usuarioId = parseInteger(payload.get("usuarioId"));
+        String conteudo = (String) payload.get("conteudo");
+        Integer respostaPaiId = parseInteger(payload.get("respostaPaiId"));
+
+        if (usuarioId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Object resposta = forumService.responderDuvida(duvidaId, usuarioId, conteudo, respostaPaiId);
+        return ResponseEntity.ok(resposta);
     }
 
     @PatchMapping("/duvida/{duvidaId}/status")
-    public ResponseEntity<Duvida> atualizarStatusDuvida(@PathVariable Integer duvidaId, @RequestBody Map<String, String> payload) {
-        return ResponseEntity.ok(forumService.atualizarStatusDuvida(duvidaId, payload.get("status")));
+    public ResponseEntity<?> atualizarStatusDuvida(@PathVariable Integer duvidaId, @RequestBody Map<String, String> payload) {
+        if (payload == null || !payload.containsKey("status")) return ResponseEntity.badRequest().build();
+        Object updated = forumService.atualizarStatusDuvida(duvidaId, payload.get("status"));
+        return ResponseEntity.ok(updated);
     }
 
     @PutMapping("/duvida/{duvidaId}")
-    public ResponseEntity<Duvida> editarDuvida(@PathVariable Integer duvidaId, @RequestBody Map<String, Object> payload) {
-        Integer usuarioId = Integer.valueOf(payload.get("usuarioId").toString());
+    public ResponseEntity<?> editarDuvida(@PathVariable Integer duvidaId, @RequestBody Map<String, Object> payload) {
+        if (payload == null) return ResponseEntity.badRequest().build();
+
+        Integer usuarioId = parseInteger(payload.get("usuarioId"));
         String titulo = (String) payload.get("titulo");
         String descricao = (String) payload.get("descricao");
 
-        return ResponseEntity.ok(forumService.editarDuvida(duvidaId, usuarioId, titulo, descricao));
+        if (usuarioId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Object editada = forumService.editarDuvida(duvidaId, usuarioId, titulo, descricao);
+        return ResponseEntity.ok(editada);
     }
 
     @DeleteMapping("/resposta/{respostaId}")
     public ResponseEntity<Void> excluirResposta(@PathVariable Integer respostaId, @RequestBody Map<String, Object> payload) {
-        Integer usuarioId = Integer.valueOf(payload.get("usuarioId").toString());
+        if (payload == null) return ResponseEntity.badRequest().build();
+
+        Integer usuarioId = parseInteger(payload.get("usuarioId"));
+        if (usuarioId == null) {
+            return ResponseEntity.badRequest().build();
+        }
         forumService.excluirResposta(respostaId, usuarioId);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/resposta/{respostaId}")
-    public ResponseEntity<RespostaDuvida> editarResposta(@PathVariable Integer respostaId, @RequestBody Map<String, Object> payload) {
-        Integer usuarioId = Integer.valueOf(payload.get("usuarioId").toString());
+    public ResponseEntity<?> editarResposta(@PathVariable Integer respostaId, @RequestBody Map<String, Object> payload) {
+        if (payload == null) return ResponseEntity.badRequest().build();
+
+        Integer usuarioId = parseInteger(payload.get("usuarioId"));
         String conteudo = (String) payload.get("conteudo");
 
-        return ResponseEntity.ok(forumService.editarResposta(respostaId, usuarioId, conteudo));
+        if (usuarioId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Object editada = forumService.editarResposta(respostaId, usuarioId, conteudo);
+        return ResponseEntity.ok(editada);
     }
 
     @DeleteMapping("/duvida/{duvidaId}")
-    public ResponseEntity<Void> excluirDuvida(@PathVariable Integer duvidaId, @RequestBody Map<String, Object> payload) {
-        Integer usuarioId = Integer.valueOf(payload.get("usuarioId").toString());
+    public ResponseEntity<Void> excluirDuvida(@PathVariable Integer duvidaId, @RequestParam Integer usuarioId) {
+        if (usuarioId == null) return ResponseEntity.badRequest().build();
+
         forumService.excluirDuvida(duvidaId, usuarioId);
+        anexoForumRepository.deleteByReferenciaIdAndTipo(duvidaId.longValue(), AnexoForum.TipoAnexo.DUVIDA);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/anexo")
+    public ResponseEntity<?> adicionarAnexo(@RequestBody Map<String, Object> payload) {
+        if (payload == null) return ResponseEntity.badRequest().build();
+
+        String url = (String) payload.get("url");
+        Long referenciaId = Long.valueOf(payload.get("referenciaId").toString());
+        String tipoStr = (String) payload.get("tipo");
+
+        if (url == null || referenciaId == null || tipoStr == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        AnexoForum anexo = new AnexoForum();
+        anexo.setUrl(url);
+        anexo.setReferenciaId(referenciaId);
+        anexo.setTipo(AnexoForum.TipoAnexo.valueOf(tipoStr));
+
+        return ResponseEntity.ok(anexoForumRepository.save(anexo));
+    }
+
+    @GetMapping("/anexos/{referenciaId}/{tipo}")
+    public ResponseEntity<?> listarAnexos(@PathVariable Long referenciaId, @PathVariable String tipo) {
+        return ResponseEntity.ok(anexoForumRepository.findByReferenciaIdAndTipo(referenciaId, AnexoForum.TipoAnexo.valueOf(tipo)));
+    }
+
+    @DeleteMapping("/anexo/{id}")
+    public ResponseEntity<Void> excluirAnexo(@PathVariable Long id) {
+        anexoForumRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/anexo/{id}")
+    public ResponseEntity<?> atualizarAnexo(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+        if (payload == null || !payload.containsKey("url")) return ResponseEntity.badRequest().build();
+
+        return anexoForumRepository.findById(id)
+                .map(anexo -> {
+                    anexo.setUrl(payload.get("url"));
+                    return ResponseEntity.ok(anexoForumRepository.save(anexo));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    private Integer parseInteger(Object value) {
+        if (value == null) return null;
+        if (value instanceof Integer) return (Integer) value;
+        if (value instanceof Number) return ((Number) value).intValue();
+        try {
+            return Integer.valueOf(value.toString().trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

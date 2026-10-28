@@ -95,7 +95,6 @@ const MonitorDashboard: React.FC = () => {
           <section className="disciplines-section text-center">
             <div className="section-header d-flex justify-content-between align-items-center mb-4 text-start">
               <h2 className="fw-bold mb-0">Minhas Disciplinas</h2>
-              <Button variant="dark" size="sm">Adicionar Nova</Button>
             </div>
 
             {loading ? (
@@ -151,26 +150,6 @@ const MonitorDashboard: React.FC = () => {
             )}
           </section>
 
-          <Row className="g-4 mt-5">
-            <Col lg={4}>
-              <Card className="border-0 shadow-sm p-4 mb-4">
-                <h4 className="fw-bold mb-3">Ações Rápidas</h4>
-                <div className="d-grid gap-2">
-                  <Button variant="outline-dark" className="text-start py-2">📅 Atualizar Agenda</Button>
-                  <Button variant="outline-dark" className="text-start py-2">💬 Responder Fórum</Button>
-                  <Button variant="outline-dark" className="text-start py-2">📝 Lançar Relatório</Button>
-                </div>
-              </Card>
-            </Col>
-            <Col lg={8}>
-               <Card className="border-0 shadow-sm p-4 mb-4">
-                <h4 className="fw-bold mb-3">Aviso Importante</h4>
-                <div className="p-3 bg-light rounded small text-muted">
-                  Lembre-se de atualizar seus horários de atendimento para a próxima semana até sexta-feira.
-                </div>
-              </Card>
-            </Col>
-          </Row>
         </Container>
       </main>
     </div>

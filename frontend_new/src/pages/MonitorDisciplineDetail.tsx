@@ -2,16 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Table, Tabs, Tab, Badge, Modal, Form } from 'react-bootstrap';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
+import { storageService } from '../services/storageService';
+import ActivityModal from '../components/ActivityModal';
 import Forum from "./Forum";
 import ChatInterface from "./ChatInterface";
 import './Dashboard.css';
 
 interface Schedule {
   id: number;
-  dayOfWeek: string;
+  date: string;
   startTime: string;
   endTime: string;
   room: string;
+  monitoringSession: {
+    monitor: {
+      id: number;
+      nome: string;
+    };
+  };
 }
 
 interface Activity {
@@ -19,6 +27,7 @@ interface Activity {
   titulo: string;
   prazo: string;
   descricao: string;
+  arquivoUrl?: string;
 }
 
 interface Monitor {
@@ -44,19 +53,30 @@ const MonitorDisciplineDetail: React.FC = () => {
 
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [newSchedule, setNewSchedule] = useState({
-    dayOfWeek: 'Segunda',
+    date: '',
     startTime: '',
     endTime: '',
     room: ''
   });
 
+  const [showEditScheduleModal, setShowEditScheduleModal] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<Partial<Schedule>>({});
+
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [attendanceList, setAttendanceList] = useState<{id: number, nome: string, email: string, matricula: string, present: boolean}[]>([]);
+  const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
+  const [isAttendanceLocked, setIsAttendanceLocked] = useState(false);
+
   const [showActivityModal, setShowActivityModal] = useState(false);
-  const [newActivity, setNewActivity] = useState({
+  const [activity, setActivity] = useState({
     titulo: '',
     prazo: '',
     descricao: '',
-    noDeadline: false
+    noDeadline: false,
+    arquivoUrl: ''
   });
+  const [isEditingActivity, setIsEditingActivity] = useState(false);
+  const [uploadingActivityFile, setUploadingActivityFile] = useState(false);
 
   const fetchAllData = async () => {
     try {
@@ -65,11 +85,15 @@ const MonitorDisciplineDetail: React.FC = () => {
         api.get(`/disciplines/${id}/schedules`),
         api.get(`/disciplines/${id}/activities`),
       ]);
-      setMonitors(monRes.data);
-      setSchedule(schRes.data);
-      setActivities(actRes.data);
+
+      setMonitors(Array.isArray(monRes.data) ? monRes.data : []);
+      setSchedule(Array.isArray(schRes.data) ? schRes.data : []);
+      setActivities(Array.isArray(actRes.data) ? actRes.data : []);
     } catch (error) {
       console.error('Erro ao carregar dados da disciplina:', error);
+      setMonitors([]);
+      setSchedule([]);
+      setActivities([]);
     }
   };
 
@@ -77,9 +101,10 @@ const MonitorDisciplineDetail: React.FC = () => {
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const res = await api.get(`/chat/conversations/${user.id}`);
-      setConversations(res.data);
+      setConversations(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error('Erro ao carregar conversas do monitor:', error);
+      setConversations([]);
     }
   };
 
@@ -88,22 +113,74 @@ const MonitorDisciplineDetail: React.FC = () => {
     fetchConversations();
   }, [id]);
 
-  const handleAddSchedule = async () => {
+  const handleAddSchedule = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newSchedule.date || !newSchedule.startTime || !newSchedule.endTime || !newSchedule.room.trim()) {
+      alert('Por favor, preencha todos os campos.');
+      return;
+    }
+
+    const today = new Date();
+    const selectedDate = new Date(newSchedule.date + 'T00:00:00');
+    const now = new Date();
+
+    if (selectedDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+      alert('Não é permitido agendar monitorias para datas passadas.');
+      return;
+    }
+
+    if (selectedDate.toDateString() === now.toDateString()) {
+      const [startHour, startMin] = newSchedule.startTime.split(':').map(Number);
+      const currentHour = now.getHours();
+      const currentMin = now.getMinutes();
+
+      if (startHour < currentHour || (startHour === currentHour && startMin < currentMin)) {
+        alert('Não é permitido agendar monitorias para horários que já passaram no dia de hoje.');
+        return;
+      }
+    }
+
+    if (newSchedule.startTime && newSchedule.endTime) {
+      const [startH, startM] = newSchedule.startTime.split(':').map(Number);
+      const [endH, endM] = newSchedule.endTime.split(':').map(Number);
+      const startTotalMinutes = startH * 60 + startM;
+      const endTotalMinutes = endH * 60 + endM;
+
+      if (endTotalMinutes <= startTotalMinutes) {
+        alert('O horário de término deve ser posterior ao horário de início.');
+        return;
+      }
+    }
+
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const sessionRes = await api.get(`/disciplines/${id}/session/${user.id}`);
       const sessionId = sessionRes.data;
-
       await api.post('/schedules', {
         ...newSchedule,
         monitoringSession: { id: sessionId }
-      });
+      }, { headers: { 'Content-Type': 'application/json' } });
       await fetchAllData();
       setShowScheduleModal(false);
-      setNewSchedule({ dayOfWeek: 'Segunda', startTime: '', endTime: '', room: '' });
+      setNewSchedule({ date: '', startTime: '', endTime: '', room: '' });
     } catch (error) {
-      console.error(error);
-      alert('Erro ao adicionar horário. Verifique se você está vinculado a esta disciplina como monitor.');
+      alert('Erro ao adicionar horário.');
+    }
+  };
+
+  const handleEditClick = (schedule: Schedule) => {
+    setEditingSchedule(schedule);
+    setShowEditScheduleModal(true);
+  };
+
+  const handleUpdateSchedule = async () => {
+    try {
+      await api.put(`/schedules/${editingSchedule.id}`, editingSchedule);
+      await fetchAllData();
+      setShowEditScheduleModal(false);
+      setEditingSchedule({});
+    } catch (error) {
+      alert('Erro ao atualizar horário');
     }
   };
 
@@ -116,19 +193,100 @@ const MonitorDisciplineDetail: React.FC = () => {
     }
   };
 
-  const handleAddActivity = async () => {
+  const handleOpenAttendance = async (scheduleId: number) => {
     try {
+      const res = await api.get(`/presencas/horario/${scheduleId}`);
+      const presencas = res.data.map((p: any) => p.user.id);
+      const hasAttendance = presencas.length > 0;
+      setIsAttendanceLocked(hasAttendance);
+
+      const alunosRes = await api.get(`/presencas/horario/${scheduleId}/alunos`);
+      const alunos = alunosRes.data.map((aluno: any) => ({
+        id: aluno.id,
+        nome: aluno.nome,
+        email: aluno.email,
+        matricula: aluno.matricula,
+        present: presencas.includes(aluno.id)
+      })).sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+      setAttendanceList(alunos);
+      setSelectedScheduleId(scheduleId);
+      setShowAttendanceModal(true);
+    } catch (error) {
+      alert('Erro ao carregar lista de alunos');
+    }
+  };
+
+  const handleSaveAttendance = async () => {
+    if (!selectedScheduleId) return;
+    try {
+      const presentIds = attendanceList.filter(a => a.present).map(a => a.id);
+      await api.post('/presencas/registrar', {
+        scheduleId: selectedScheduleId,
+        userIds: presentIds
+      });
+      alert('Presença salva com sucesso!');
+      setShowAttendanceModal(false);
+    } catch (error) {
+      alert('Erro ao salvar presença');
+    }
+  };
+
+  const handleSaveActivity = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    try {
+      const { id: _, ...restOfActivity } = activity;
+
       const activityData = {
-        ...newActivity,
-        prazo: newActivity.noDeadline ? null : newActivity.prazo,
+        ...restOfActivity,
+        prazo: activity.noDeadline ? null : activity.prazo,
         discipline: { id: Number(id) }
       };
-      await api.post('/activities', activityData);
+
+      console.log('Tentando salvar atividade...', isEditingActivity ? 'EDITANDO' : 'CRIANDO', activityData);
+
+      if (isEditingActivity && activity.id) {
+        await api.put(`/activities/${activity.id}`, activityData);
+      } else {
+        await api.post('/activities', activityData);
+      }
+
       await fetchAllData();
       setShowActivityModal(false);
-      setNewActivity({ titulo: '', prazo: '', descricao: '', noDeadline: false });
+      setActivity({ titulo: '', prazo: '', descricao: '', noDeadline: false, arquivoUrl: '' });
+      setIsEditingActivity(false);
+      alert('Atividade salva com sucesso!');
+    } catch (error: any) {
+      console.error('ERRO NO SALVAMENTO:', error);
+      alert('Erro ao salvar atividade. Verifique se o backend está rodando e olhe o console para mais detalhes.');
+    }
+  };
+
+  const handleEditActivity = (act: Activity) => {
+    setActivity({
+      id: act.id,
+      titulo: act.titulo || '',
+      prazo: act.prazo || '',
+      descricao: act.descricao || '',
+      noDeadline: !act.prazo,
+      arquivoUrl: (act as any).arquivoUrl || ''
+    });
+    setIsEditingActivity(true);
+    setShowActivityModal(true);
+  };
+
+  const handleActivityFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingActivityFile(true);
+      const url = await storageService.uploadFile(file, 'atividades');
+      setActivity(prev => ({ ...prev, arquivoUrl: url }));
+      alert('Arquivo enviado com sucesso!');
     } catch (error) {
-      alert('Erro ao adicionar atividade');
+      alert('Erro ao enviar arquivo.');
+    } finally {
+      setUploadingActivityFile(false);
     }
   };
 
@@ -145,6 +303,19 @@ const MonitorDisciplineDetail: React.FC = () => {
 
   return (
     <Container className="py-5">
+      <ActivityModal
+        show={showActivityModal}
+        onHide={() => {
+          setShowActivityModal(false);
+          setIsEditingActivity(false);
+        }}
+        activity={activity}
+        setActivity={setActivity}
+        handleSaveActivity={handleSaveActivity}
+        handleActivityFileUpload={handleActivityFileUpload}
+        uploadingActivityFile={uploadingActivityFile}
+        isEditing={isEditingActivity}
+      />
       <nav aria-label="breadcrumb" className="mb-4">
         <ol className="breadcrumb small font-monospace">
           <li className="breadcrumb-item"><Link to="/monitor-dashboard" className="text-decoration-none">Painel do Monitor</Link></li>
@@ -170,11 +341,10 @@ const MonitorDisciplineDetail: React.FC = () => {
       </Card>
 
       <Tabs defaultActiveKey="monitores" id="monitor-discipline-tabs" className="mb-4 custom-tabs">
-
         <Tab eventKey="monitores" title="Monitores">
           <div className="p-4 bg-white border rounded shadow-sm">
             <Row className="g-4">
-              {monitors.map(mon => (
+              {monitors && monitors.map(mon => (
                 <Col key={mon.id} md={6}>
                   <Card className="border-0 shadow-sm p-3 monitor-card-modern">
                     <div className="d-flex align-items-center gap-3">
@@ -187,12 +357,11 @@ const MonitorDisciplineDetail: React.FC = () => {
                   </Card>
                 </Col>
               ))}
-              {monitors.length === 0 && <Col className="text-center w-100"><p className="text-muted">Nenhum monitor encontrado.</p></Col>}
+              {(monitors || []).length === 0 && <Col className="text-center w-100"><p className="text-muted">Nenhum monitor encontrado.</p></Col>}
             </Row>
           </div>
         </Tab>
-
-        <Tab eventKey="horarios" title="Horários">
+        <Tab eventKey="horarios" title="Próximos Horários">
           <div className="p-4 bg-white border rounded shadow-sm">
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h5 className="fw-bold mb-0">Gerenciar Horários de Atendimento</h5>
@@ -201,60 +370,131 @@ const MonitorDisciplineDetail: React.FC = () => {
             <Table responsive hover className="align-middle">
               <thead className="bg-light text-muted small">
                 <tr className="text-center">
-                  <th className="border-0">Dia</th>
+                  <th className="border-0">Data</th>
                   <th className="border-0">Início</th>
                   <th className="border-0">Fim</th>
+                  <th className="border-0">Sala</th>
+                  <th className="border-0">Monitor Responsável</th>
                   <th className="border-0 text-center">Ação</th>
                 </tr>
               </thead>
               <tbody className="text-center small">
-                {schedule.map(item => (
+                {schedule && schedule.filter(item => {
+                  const now = new Date();
+                  const itemDate = new Date(item.date + 'T00:00:00');
+                  if (itemDate > now) return true;
+                  if (itemDate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) return false;
+                  const [startHour, startMin] = item.startTime.split(':').map(Number);
+                  const currentHour = now.getHours();
+                  const currentMin = now.getMinutes();
+                  return startHour > currentHour || (startHour === currentHour && startMin >= currentMin);
+                }).map(item => (
                   <tr key={item.id} className="border-bottom">
-                    <td className="fw-bold">{item.dayOfWeek}</td>
+                    <td className="fw-bold">{item.date}</td>
                     <td>{item.startTime}</td>
                     <td>{item.endTime}</td>
+                    <td>{item.room}</td>
+                    <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
                     <td className="text-center">
-                      <Button variant="outline-danger" size="sm" onClick={() => handleRemoveSchedule(item.id)}>Remover</Button>
+                      <div className="d-flex gap-2 justify-content-center">
+                        <Button variant="outline-primary" size="sm" onClick={() => handleEditClick(item)}>Editar</Button>
+                        <Button variant="outline-danger" size="sm" onClick={() => handleRemoveSchedule(item.id)}>Remover</Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
+                {(!schedule || schedule.filter(s => new Date(s.date) >= new Date()).length === 0) && <tr><td colSpan={6} className="text-center py-3 text-muted">Nenhum horário futuro cadastrado.</td></tr>}
               </tbody>
             </Table>
           </div>
         </Tab>
-
+        <Tab eventKey="passados" title="Monitorias Passadas">
+          <div className="p-4 bg-white border rounded shadow-sm">
+            <Table responsive hover className="align-middle">
+              <thead className="bg-light text-muted small">
+                <tr className="text-center">
+                  <th className="border-0">Data</th>
+                  <th className="border-0">Início</th>
+                  <th className="border-0">Fim</th>
+                  <th className="border-0">Sala</th>
+                  <th className="border-0">Monitor Responsável</th>
+                  <th className="border-0 text-center">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="text-center small">
+                {schedule && schedule.filter(item => {
+                  const now = new Date();
+                  const itemDate = new Date(item.date + 'T00:00:00');
+                  if (itemDate > now) return false;
+                  if (itemDate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) return true;
+                  const [startHour, startMin] = item.startTime.split(':').map(Number);
+                  const currentHour = now.getHours();
+                  const currentMin = now.getMinutes();
+                  return startHour < currentHour || (startHour === currentHour && startMin < currentMin);
+                }).map(item => (
+                  <tr key={item.id} className="border-bottom">
+                    <td className="fw-bold">{item.date}</td>
+                    <td>{item.startTime}</td>
+                    <td>{item.endTime}</td>
+                    <td>{item.room}</td>
+                    <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
+                    <td className="text-center">
+                      <Button variant="outline-success" size="sm" onClick={() => handleOpenAttendance(item.id)}>
+                        Ver Chamada
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {(!schedule || schedule.filter(s => new Date(s.date) < new Date()).length === 0) && <tr><td colSpan={6} className="text-center py-3 text-muted">Nenhuma monitoria passada encontrada.</td></tr>}
+              </tbody>
+            </Table>
+          </div>
+        </Tab>
         <Tab eventKey="atividades" title="Atividades">
           <div className="p-4 bg-white border rounded shadow-sm">
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h5 className="fw-bold mb-0">Gerenciar Atividades de Fixação</h5>
-              <Button variant="dark" size="sm" onClick={() => setShowActivityModal(true)}>+ Nova Atividade</Button>
+              <Button variant="dark" size="sm" onClick={() => {
+                setActivity({ titulo: '', prazo: '', descricao: '', noDeadline: false, arquivoUrl: '' });
+                setIsEditingActivity(false);
+                setShowActivityModal(true);
+              }}>+ Nova Atividade</Button>
             </div>
             <Row className="g-3">
-              {activities.map(act => (
+              {activities && activities.map(act => (
                 <Col xs={12} key={act.id}>
                   <Card className="border-0 shadow-sm p-3 mb-2">
                     <div className="d-flex justify-content-between align-items-start">
                       <div className="flex-grow-1">
                         <h6 className="fw-bold mb-1">{act.titulo}</h6>
-                        <p className="small text-muted mb-0">Prazo: {act.prazo}</p>
+                        <p className="small text-muted mb-0">Prazo: {act.prazo || 'Sem prazo'}</p>
                       </div>
-                      <Button variant="outline-danger" size="sm" onClick={() => handleRemoveActivity(act.id)}>Excluir</Button>
+                      <div className="d-flex gap-2">
+                        <Button variant="outline-primary" size="sm" onClick={() => handleEditActivity(act)}>Editar</Button>
+                        <Button variant="outline-danger" size="sm" onClick={() => handleRemoveActivity(act.id)}>Excluir</Button>
+                      </div>
                     </div>
                     <p className="small text-muted mt-2">{act.descricao}</p>
+                    {(act as any).arquivoUrl && (
+                      <div className="mt-2">
+                        <a href={(act as any).arquivoUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2">
+                          <i className="bi bi-file-earmark-text"></i> Ver Anexo
+                        </a>
+                      </div>
+                    )}
                   </Card>
                 </Col>
               ))}
+              {(!activities || activities.length === 0) && <Col className="text-center w-100"><p className="small text-muted">Nenhuma atividade de fixação disponível.</p></Col>}
             </Row>
           </div>
         </Tab>
-
         <Tab eventKey="forum" title="Fórum">
           <Forum disciplineId={id} />
         </Tab>
-
         <Tab eventKey="mensagens" title="Mensagens">
           <div className="p-4 bg-white border rounded shadow-sm">
-            {conversations.length > 0 ? (
+            {conversations && conversations.length > 0 ? (
               <ChatInterface
                 contacts={conversations}
                 currentUserId={user.id}
@@ -276,21 +516,15 @@ const MonitorDisciplineDetail: React.FC = () => {
           <Modal.Title className="fw-bold">Novo Horário de Monitoria</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form>
+          <Form id="schedule-form" onSubmit={handleAddSchedule}>
             <Form.Group className="mb-3">
-              <Form.Label className="small fw-bold">Dia da Semana</Form.Label>
-              <Form.Select
-                value={newSchedule.dayOfWeek}
-                onChange={e => setNewSchedule({...newSchedule, dayOfWeek: e.target.value})}
-              >
-                <option>Segunda</option>
-                <option>Terça</option>
-                <option>Quarta</option>
-                <option>Quinta</option>
-                <option>Sexta</option>
-                <option>Sábado</option>
-                <option>Domingo</option>
-              </Form.Select>
+              <Form.Label className="small fw-bold">Data do Atendimento</Form.Label>
+              <Form.Control
+                type="date"
+                min={new Date().toISOString().split('T')[0]}
+                value={newSchedule.date}
+                onChange={e => setNewSchedule({ ...newSchedule, date: e.target.value })}
+              />
             </Form.Group>
             <Row>
               <Col>
@@ -327,59 +561,108 @@ const MonitorDisciplineDetail: React.FC = () => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowScheduleModal(false)}>Cancelar</Button>
-          <Button variant="dark" onClick={handleAddSchedule}>Salvar Horário</Button>
+          <Button type="submit" form="schedule-form" variant="dark">Salvar Horário</Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Modal Atividade */}
-      <Modal show={showActivityModal} onHide={() => setShowActivityModal(false)} centered>
+      {/* Modal Editar Horário */}
+      <Modal show={showEditScheduleModal} onHide={() => setShowEditScheduleModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title className="fw-bold">Nova Atividade de Fixação</Modal.Title>
+          <Modal.Title className="fw-bold">Editar Horário de Monitoria</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Form>
             <Form.Group className="mb-3">
-              <Form.Label className="small fw-bold">Título da Atividade</Form.Label>
+              <Form.Label className="small fw-bold">Data</Form.Label>
+              <Form.Control
+                type="date"
+                value={editingSchedule.date || ''}
+                onChange={e => setEditingSchedule({...editingSchedule, date: e.target.value})}
+              />
+            </Form.Group>
+            <Row>
+              <Col>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small fw-bold">Início</Form.Label>
+                  <Form.Control
+                    type="time"
+                    value={editingSchedule.startTime || ''}
+                    onChange={e => setEditingSchedule({...editingSchedule, startTime: e.target.value})}
+                  />
+                </Form.Group>
+              </Col>
+              <Col>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small fw-bold">Fim</Form.Label>
+                  <Form.Control
+                    type="time"
+                    value={editingSchedule.endTime || ''}
+                    onChange={e => setEditingSchedule({...editingSchedule, endTime: e.target.value})}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+            <Form.Group className="mb-3">
+              <Form.Label className="small fw-bold">Sala</Form.Label>
               <Form.Control
                 type="text"
-                placeholder="Ex: Atividade 1 - Flexbox"
-                value={newActivity.titulo}
-                onChange={e => setNewActivity({...newActivity, titulo: e.target.value})}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label className="small fw-bold">Prazo (Deadline)</Form.Label>
-              <div className="d-flex gap-2 align-items-center mb-2">
-                <Form.Check
-                  type="switch"
-                  id="no-deadline"
-                  label="Sem limite de entrega"
-                  checked={newActivity.noDeadline}
-                  onChange={e => setNewActivity({...newActivity, noDeadline: e.target.checked})}
-                />
-              </div>
-              <Form.Control
-                type="datetime-local"
-                disabled={newActivity.noDeadline}
-                value={newActivity.prazo}
-                onChange={e => setNewActivity({...newActivity, prazo: e.target.value})}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label className="small fw-bold">Descrição</Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={3}
-                placeholder="Instruções da atividade..."
-                value={newActivity.descricao}
-                onChange={e => setNewActivity({...newActivity, descricao: e.target.value})}
+                value={editingSchedule.room || ''}
+                onChange={e => setEditingSchedule({...editingSchedule, room: e.target.value})}
               />
             </Form.Group>
           </Form>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowActivityModal(false)}>Cancelar</Button>
-          <Button variant="dark" onClick={handleAddActivity}>Salvar Atividade</Button>
+          <Button variant="secondary" onClick={() => setShowEditScheduleModal(false)}>Cancelar</Button>
+          <Button variant="dark" onClick={handleUpdateSchedule}>Salvar Alterações</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal Chamada */}
+      <Modal show={showAttendanceModal} onHide={() => setShowAttendanceModal(false)} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title className="fw-bold">Fazer Chamada de Presença</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Table responsive hover className="small">
+            <thead className="bg-light">
+              <tr className="text-center">
+                <th className="text-start">Aluno</th>
+                <th>Matrícula</th>
+                <th>E-mail</th>
+                <th>Presença</th>
+              </tr>
+            </thead>
+            <tbody className="text-center">
+              {attendanceList.map(aluno => (
+                <tr key={aluno.id} className="border-bottom">
+                  <td className="text-start">{aluno.nome}</td>
+                  <td>{aluno.matricula}</td>
+                  <td>{aluno.email}</td>
+                  <td>
+                    <Form.Check
+                      type="checkbox"
+                      checked={aluno.present}
+                      disabled={isAttendanceLocked}
+                      onChange={e => {
+                        setAttendanceList(prev => prev.map(a => a.id === aluno.id ? {...a, present: e.target.checked} : a));
+                      }}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAttendanceModal(false)}>Cancelar</Button>
+          <Button
+            variant="dark"
+            onClick={handleSaveAttendance}
+            disabled={isAttendanceLocked}
+          >
+            {isAttendanceLocked ? 'Chamada Finalizada' : 'Salvar Presença'}
+          </Button>
         </Modal.Footer>
       </Modal>
     </Container>

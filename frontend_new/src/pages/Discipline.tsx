@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Table, Tabs, Tab, Badge } from 'react-bootstrap';
-import { useParams, Link } from 'react-router-dom';
+import { Container, Row, Col, Card, Button, Table, Tabs, Tab, Badge, Modal, Form } from 'react-bootstrap';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import Forum from './Forum';
 import ChatInterface from './ChatInterface';
@@ -8,12 +8,13 @@ import './Discipline.css';
 
 interface Schedule {
   id: number;
-  dayOfWeek: string;
+  date: string;
   startTime: string;
   endTime: string;
   room: string;
   monitoringSession: {
     monitor: {
+      id: number;
       nome: string;
     };
   };
@@ -24,6 +25,7 @@ interface Activity {
   titulo: string;
   prazo: string;
   descricao: string;
+  arquivoUrl?: string;
 }
 
 interface Monitor {
@@ -34,10 +36,15 @@ interface Monitor {
 
 const Discipline: React.FC = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('monitores');
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [disciplineName, setDisciplineName] = useState('Carregando...');
+
+  const [showEditScheduleModal, setShowEditScheduleModal] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<Partial<Schedule>>({});
 
   useEffect(() => {
     const fetchAllData = async () => {
@@ -78,6 +85,33 @@ const Discipline: React.FC = () => {
     if (id) fetchAllData();
   }, [id]);
 
+  const handleEditClick = (schedule: Schedule) => {
+    setEditingSchedule(schedule);
+    setShowEditScheduleModal(true);
+  };
+
+  const handleUpdateSchedule = async () => {
+    try {
+      await api.put(`/schedules/${editingSchedule.id}`, editingSchedule);
+      setShowEditScheduleModal(false);
+      // Refresh schedules
+      const schRes = await api.get(`/disciplines/${id}/schedules`);
+      setSchedules(schRes.data);
+    } catch (error) {
+      alert('Erro ao atualizar horário');
+    }
+  };
+
+  const handleDeleteSchedule = async (id: number) => {
+    if (!window.confirm('Deseja excluir este horário?')) return;
+    try {
+      await api.delete(`/schedules/${id}`);
+      setSchedules(prev => prev.filter(s => s.id !== id));
+    } catch (error) {
+      alert('Erro ao excluir horário');
+    }
+  };
+
   return (
     <Container className="py-5">
       <nav aria-label="breadcrumb" className="mb-4">
@@ -100,11 +134,11 @@ const Discipline: React.FC = () => {
             <h3 className="fw-bold mb-1">{disciplineName}</h3>
             <p className="text-muted mb-0">Acompanhe os horários de monitoria e atividades de fixação.</p>
           </div>
-          <Button variant="dark" className="fw-bold px-4">Ir para o Fórum</Button>
+          <Button variant="dark" className="fw-bold px-4" onClick={() => window.location.href='/dashboard'}>Voltar para Dashboard</Button>
         </Card.Body>
       </Card>
 
-      <Tabs defaultActiveKey="monitores" id="discipline-tabs" className="mb-4 custom-tabs">
+      <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} defaultActiveKey="monitores" id="discipline-tabs" className="mb-4 custom-tabs">
         <Tab eventKey="monitores" title="Monitores">
           <div className="p-4 bg-white border rounded shadow-sm">
             <Row className="g-4">
@@ -117,7 +151,7 @@ const Discipline: React.FC = () => {
                         <h6 className="fw-bold mb-0">{mon.nome}</h6>
                         <small className="text-muted">{mon.email}</small>
                       </div>
-                      <Button variant="outline-dark" size="sm" className="fw-bold">Chat</Button>
+                      <Button variant="outline-dark" size="sm" className="fw-bold" onClick={() => setActiveTab('mensagens')}>Chat</Button>
                     </div>
                   </Card>
                 </Col>
@@ -132,7 +166,7 @@ const Discipline: React.FC = () => {
             <Table responsive hover className="align-middle">
               <thead className="bg-light text-muted small">
                 <tr className="text-center">
-                  <th className="border-0">Dia da Semana</th>
+                  <th className="border-0">Data</th>
                   <th className="border-0">Horário</th>
                   <th className="border-0">Sala</th>
                   <th className="border-0">Monitor Responsável</th>
@@ -140,15 +174,29 @@ const Discipline: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="text-center small">
-                {schedules.map(item => (
-                  <tr key={item.id} className="border-bottom">
-                    <td>{item.dayOfWeek}</td>
-                    <td>{item.startTime} - {item.endTime}</td>
-                    <td>{item.room}</td>
-                    <td className="fw-bold">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
-                    <td className="text-center"><Button variant="dark" size="sm">Agendar</Button></td>
-                  </tr>
-                ))}
+                {schedules.map(item => {
+                  const user = JSON.parse(localStorage.getItem('user') || '{}');
+                  const isAuthor = item.monitoringSession?.monitor?.id === user.id;
+
+                  return (
+                    <tr key={item.id} className="border-bottom">
+                      <td>{item.date}</td>
+                      <td>{item.startTime} - {item.endTime}</td>
+                      <td>{item.room}</td>
+                      <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
+                      <td className="text-center">
+                        {isAuthor ? (
+                          <div className="d-flex gap-2 justify-content-center">
+                            <Button variant="outline-primary" size="sm" onClick={() => handleEditClick(item)}>Editar</Button>
+                            <Button variant="outline-danger" size="sm" onClick={() => handleDeleteSchedule(item.id)}>Excluir</Button>
+                          </div>
+                        ) : (
+                          <Button variant="dark" size="sm">Agendar</Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {schedules.length === 0 && <tr><td colSpan={5} className="text-center py-3 text-muted">Nenhum horário cadastrado.</td></tr>}
               </tbody>
             </Table>
@@ -171,11 +219,17 @@ const Discipline: React.FC = () => {
                       <Badge bg="primary">Atividade</Badge>
                     </div>
                     <p className="small text-muted mt-2">{act.descricao}</p>
-                    <Button variant="link" className="p-0 text-decoration-none small fw-bold">Ver Instruções →</Button>
+                    {act.arquivoUrl && (
+                      <div className="mt-2">
+                        <a href={act.arquivoUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2">
+                          <i className="bi bi-file-earmark-text"></i> Ver Anexo
+                        </a>
+                      </div>
+                    )}
                   </Card>
                 </Col>
               ))}
-              {activities.length === 0 && <Col className="text-center w-100"><p className="text-muted">Nenhuma atividade de fixação disponível.</p></Col>}
+              {activities.length === 0 && <Col className="text-center w-100"><p className="small text-muted">Nenhuma atividade de fixação disponível.</p></Col>}
             </Row>
           </div>
         </Tab>
@@ -195,6 +249,58 @@ const Discipline: React.FC = () => {
           </div>
         </Tab>
       </Tabs>
+
+      <Modal show={showEditScheduleModal} onHide={() => setShowEditScheduleModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title className="fw-bold">Editar Horário de Monitoria</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group className="mb-3">
+              <Form.Label className="small fw-bold">Data</Form.Label>
+              <Form.Control
+                type="date"
+                value={editingSchedule.date || ''}
+                onChange={e => setEditingSchedule({...editingSchedule, date: e.target.value})}
+              />
+            </Form.Group>
+            <Row>
+              <Col>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small fw-bold">Início</Form.Label>
+                  <Form.Control
+                    type="time"
+                    value={editingSchedule.startTime || ''}
+                    onChange={e => setEditingSchedule({...editingSchedule, startTime: e.target.value})}
+                  />
+                </Form.Group>
+              </Col>
+              <Col>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small fw-bold">Fim</Form.Label>
+                  <Form.Control
+                    type="time"
+                    value={editingSchedule.endTime || ''}
+                    onChange={e => setEditingSchedule({...editingSchedule, endTime: e.target.value})}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+            <Form.Group className="mb-3">
+              <Form.Label className="small fw-bold">Sala</Form.Label>
+              <Form.Control
+                type="text"
+                value={editingSchedule.room || ''}
+                onChange={e => setEditingSchedule({...editingSchedule, room: e.target.value})}
+              />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowEditScheduleModal(false)}>Cancelar</Button>
+          <Button variant="dark" onClick={handleUpdateSchedule}>Salvar Alterações</Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 };

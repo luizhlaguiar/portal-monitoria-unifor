@@ -89,7 +89,7 @@ const ManageDiscipline: React.FC = () => {
             <Col lg={4}>
               <Card className="border-0 shadow-sm p-4 bg-white">
                 <h5 className="fw-bold mb-3">Nova Atividade</h5>
-                <Form>
+                <Form onSubmit={(e) => { e.preventDefault(); handleAddActivity(); }}>
                   <Form.Group className="mb-3">
                     <Form.Label className="small fw-bold">Título</Form.Label>
                     <Form.Control
@@ -103,7 +103,7 @@ const ManageDiscipline: React.FC = () => {
                     <Form.Control
                       as="textarea"
                       rows={3}
-                      value={//Certo agora
+                      value={
                       newActivity.description}
                       onChange={e => setNewActivity({...newActivity, description: e.target.value})}
                     />

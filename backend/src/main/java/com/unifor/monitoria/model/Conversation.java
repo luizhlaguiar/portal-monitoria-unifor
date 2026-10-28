@@ -21,7 +21,7 @@ public class Conversation {
     private User monitor;
 
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL)
-    @JsonManagedReference
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private List<Message> messages;
 
     public Conversation() {}

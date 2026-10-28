@@ -18,6 +18,16 @@ public class ScheduleController {
         return ResponseEntity.ok(scheduleRepository.save(schedule));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Schedule> updateSchedule(@PathVariable Integer id, @RequestBody Schedule schedule) {
+        return scheduleRepository.findById(id)
+                .map(s -> {
+                    schedule.setId(id);
+                    return ResponseEntity.ok(scheduleRepository.save(schedule));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSchedule(@PathVariable Integer id) {
         scheduleRepository.deleteById(id);

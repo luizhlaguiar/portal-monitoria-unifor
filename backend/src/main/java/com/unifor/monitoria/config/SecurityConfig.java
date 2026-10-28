@@ -19,11 +19,9 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .cors(cors -> cors.disable()) // Desabilita a config de CORS do Security pois usaremos o CorsFilter customizado
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/ws-chat/**").permitAll()
-                .requestMatchers("/api/auth/**").permitAll()
                 .anyRequest().permitAll()
             );
 

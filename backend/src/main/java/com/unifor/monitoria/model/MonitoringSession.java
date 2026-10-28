@@ -1,7 +1,10 @@
 package com.unifor.monitoria.model;
 
 import jakarta.persistence.*;
-import java.time.LocalTime;
+import java.util.List;
+import java.util.ArrayList;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "monitorias")
@@ -18,21 +21,16 @@ public class MonitoringSession {
     @JoinColumn(name = "monitor_id")
     private User monitor;
 
-    private String dayOfWeek;
-    private LocalTime startTime;
-    private LocalTime endTime;
-    private String room;
+    @JsonIgnoreProperties("monitoringSession")
+    @OneToMany(mappedBy = "monitoringSession", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Schedule> schedules = new ArrayList<>();
 
     public MonitoringSession() {}
 
-    public MonitoringSession(Integer id, Discipline discipline, User monitor, String dayOfWeek, LocalTime startTime, LocalTime endTime, String room) {
+    public MonitoringSession(Integer id, Discipline discipline, User monitor) {
         this.id = id;
         this.discipline = discipline;
         this.monitor = monitor;
-        this.dayOfWeek = dayOfWeek;
-        this.startTime = startTime;
-        this.endTime = endTime;
-        this.room = room;
     }
 
     public Integer getId() { return id; }
@@ -44,15 +42,6 @@ public class MonitoringSession {
     public User getMonitor() { return monitor; }
     public void setMonitor(User monitor) { this.monitor = monitor; }
 
-    public String getDayOfWeek() { return dayOfWeek; }
-    public void setDayOfWeek(String dayOfWeek) { this.dayOfWeek = dayOfWeek; }
-
-    public LocalTime getStartTime() { return startTime; }
-    public void setStartTime(LocalTime startTime) { this.startTime = startTime; }
-
-    public LocalTime getEndTime() { return endTime; }
-    public void setEndTime(LocalTime endTime) { this.endTime = endTime; }
-
-    public String getRoom() { return room; }
-    public void setRoom(String room) { this.room = room; }
+    public List<Schedule> getSchedules() { return schedules; }
+    public void setSchedules(List<Schedule> schedules) { this.schedules = schedules; }
 }

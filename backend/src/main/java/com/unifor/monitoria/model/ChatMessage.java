@@ -8,16 +8,18 @@ public class ChatMessage {
     private Integer receiverId;
     private String receiverName;
     private String content;
+    private String arquivoUrl;
     private LocalDateTime timestamp;
 
     public ChatMessage() {}
 
-    public ChatMessage(Integer senderId, String senderName, Integer receiverId, String receiverName, String content, LocalDateTime timestamp) {
+    public ChatMessage(Integer senderId, String senderName, Integer receiverId, String receiverName, String content, String arquivoUrl, LocalDateTime timestamp) {
         this.senderId = senderId;
         this.senderName = senderName;
         this.receiverId = receiverId;
         this.receiverName = receiverName;
         this.content = content;
+        this.arquivoUrl = arquivoUrl;
         this.timestamp = timestamp;
     }
 
@@ -35,6 +37,9 @@ public class ChatMessage {
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+
+    public String getArquivoUrl() { return arquivoUrl; }
+    public void setArquivoUrl(String arquivoUrl) { this.arquivoUrl = arquivoUrl; }
 
     public LocalDateTime getTimestamp() { return timestamp; }
     public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
