@@ -23,9 +23,8 @@ public class Message {
     @JoinColumn(name = "receiver_id")
     private User receiver;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "LONGTEXT")
     private String content;
-    private String arquivoUrl;
 
     private LocalDateTime timestamp;
 
@@ -48,9 +47,6 @@ public class Message {
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
-
-    public String getArquivoUrl() { return arquivoUrl; }
-    public void setArquivoUrl(String arquivoUrl) { this.arquivoUrl = arquivoUrl; }
 
     public LocalDateTime getTimestamp() { return timestamp; }
     public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }

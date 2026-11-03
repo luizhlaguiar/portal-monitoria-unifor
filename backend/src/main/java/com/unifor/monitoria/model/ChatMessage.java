@@ -2,6 +2,7 @@ package com.unifor.monitoria.model;
 
 import java.time.LocalDateTime;
 
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
 public class ChatMessage {
     private Integer senderId;
     private String senderName;
@@ -9,6 +10,7 @@ public class ChatMessage {
     private String receiverName;
     private String content;
     private String arquivoUrl;
+    private Integer disciplineId;
     private LocalDateTime timestamp;
 
     public ChatMessage() {}
@@ -43,4 +45,7 @@ public class ChatMessage {
 
     public LocalDateTime getTimestamp() { return timestamp; }
     public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
+
+    public Integer getDisciplineId() { return disciplineId; }
+    public void setDisciplineId(Integer disciplineId) { this.disciplineId = disciplineId; }
 }

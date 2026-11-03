@@ -19,18 +19,15 @@ const Login: React.FC = () => {
       const response = await api.post('/auth/login', form);
       const userData = response.data;
 
-      // LIMPEZA TOTAL DO STORAGE PARA EVITAR CONFLITOS
       localStorage.clear();
 
-      // SALVAMENTO EXPLICITO
-      localStorage.setItem('user', JSON.stringify(userData));
+      const { token, ...userInfo } = userData;
+      localStorage.setItem('user', JSON.stringify(userInfo));
       localStorage.setItem('role', userData.role.toUpperCase());
-      localStorage.setItem('token', 'simulated-token-123');
+      localStorage.setItem('token', token);
 
-      // REDIRECIONAMENTO FORÇADO
       window.location.href = '/dashboard';
     } catch (err: any) {
-      // Garantir que a mensagem de erro seja sempre uma string para não quebrar o React
       const errorData = err.response?.data;
       const message = typeof errorData === 'string'
         ? errorData

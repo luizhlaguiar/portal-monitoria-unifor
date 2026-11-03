@@ -14,14 +14,11 @@ export const storageService = {
    */
   async uploadFile(file: File, folder: string): Promise<string> {
     try {
-      console.log(`Iniciando upload de: ${file.name} para a pasta: ${folder}`);
 
-      // Gera um nome único para o arquivo para evitar sobrescrita
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
       const filePath = `${folder}/${fileName}`;
 
-      console.log(`Caminho do arquivo no Supabase: ${filePath}`);
 
       const { data, error } = await supabase.storage
         .from('monitoria-assets')
@@ -32,14 +29,11 @@ export const storageService = {
         throw error;
       }
 
-      console.log('Upload concluído com sucesso. Gerando URL pública...');
 
-      // Obtém a URL pública do arquivo
       const { data: { publicUrl } } = supabase.storage
         .from('monitoria-assets')
         .getPublicUrl(filePath);
 
-      console.log('URL pública gerada:', publicUrl);
       return publicUrl;
     } catch (error) {
       console.error('Erro crítico no upload do arquivo:', error);

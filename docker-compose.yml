@@ -1,4 +1,5 @@
-version: '3.8'
+# As senhas vem de variaveis de ambiente (ou de um arquivo .env nesta pasta,
+# que NAO vai para o git). Veja o .env.example.
 
 services:
   db:
@@ -6,22 +7,24 @@ services:
     container_name: mysql-monitoria
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: 12345678
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?defina MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: portal_monitoria
     ports:
-      - "3306:3306"
+      # Somente nesta maquina (127.0.0.1); nao fica acessivel pela rede.
+      - "127.0.0.1:3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      # Se você quiser que o dump seja importado automaticamente ao subir o container pela primeira vez,
-      # coloque o arquivo .sql na pasta /docker-entrypoint-initdb.d/ do seu computador e descomente a linha abaixo:
-      # - C:/Users/luizh/OneDrive/Documentos/dumps/Dump20261013.sql:/docker-entrypoint-initdb.d/dump.sql
+      # Para importar um dump na primeira subida, coloque o .sql em
+      # /docker-entrypoint-initdb.d/ e descomente (ajuste o caminho):
+      # - ./dump.sql:/docker-entrypoint-initdb.d/dump.sql
 
   redis:
     image: redis:alpine
     container_name: redis-monitoria
     restart: always
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?defina REDIS_PASSWORD}"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
 

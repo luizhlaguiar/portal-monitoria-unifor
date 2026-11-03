@@ -15,8 +15,6 @@ public class RedisConfig {
 
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
-        // Configurar o ObjectMapper para suportar LocalDateTime (Java 8 date/time)
-        // Isso resolve o erro de SerializationException no Cache do Fórum
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
 
@@ -25,11 +23,9 @@ public class RedisConfig {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        // Chaves como String para facilitar a leitura no redis-cli
         template.setKeySerializer(new StringRedisSerializer());
         template.setHashKeySerializer(new StringRedisSerializer());
 
-        // Valores como JSON com suporte a datas
         template.setValueSerializer(serializer);
         template.setHashValueSerializer(serializer);
 

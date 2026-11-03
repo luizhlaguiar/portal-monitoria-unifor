@@ -1,7 +1,16 @@
 package com.unifor.monitoria.service;
 
-import com.unifor.monitoria.model.*;
-import com.unifor.monitoria.repository.*;
+import com.unifor.monitoria.model.Duvida;
+import com.unifor.monitoria.model.User;
+import com.unifor.monitoria.model.Discipline;
+import com.unifor.monitoria.model.RespostaDuvida;
+import com.unifor.monitoria.model.dto.DuvidaDTO;
+import com.unifor.monitoria.model.dto.RespostaDuvidaDTO;
+import com.unifor.monitoria.dao.DuvidaDao;
+import com.unifor.monitoria.dao.RespostaDuvidaDao;
+import com.unifor.monitoria.dao.UserDao;
+import com.unifor.monitoria.dao.DisciplineDao;
+import com.unifor.monitoria.dao.MonitoringSessionDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -13,29 +22,29 @@ import java.util.*;
 public class ForumService {
 
     @Autowired
-    private DuvidaRepository duvidaRepository;
+    private DuvidaDao duvidaDao;
 
     @Autowired
-    private RespostaDuvidaRepository respostaRepository;
+    private RespostaDuvidaDao respostaDao;
 
     @Autowired
-    private UserRepository userRepository;
+    private UserDao userDao;
 
     @Autowired
-    private DisciplineRepository disciplineRepository;
+    private DisciplineDao disciplineDao;
 
     @Autowired
-    private MonitoringSessionRepository monitoriaRepository;
+    private MonitoringSessionDao monitoriaDao;
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
-    public List<com.unifor.monitoria.model.DuvidaDTO> listarDuvidasPorDisciplina(Integer disciplinaId) {
-        List<Duvida> duvidas = duvidaRepository.findByDisciplina_Id(disciplinaId);
-        List<com.unifor.monitoria.model.DuvidaDTO> result = new ArrayList<>();
+    public List<DuvidaDTO> listarDuvidasPorDisciplina(Integer disciplinaId) {
+        List<Duvida> duvidas = duvidaDao.findByDisciplinaId(disciplinaId);
+        List<DuvidaDTO> result = new ArrayList<>();
 
         for (Duvida d : duvidas) {
-            com.unifor.monitoria.model.DuvidaDTO dto = new com.unifor.monitoria.model.DuvidaDTO();
+            DuvidaDTO dto = new DuvidaDTO();
             dto.setId(d.getId());
             dto.setTitulo(d.getTitulo());
             dto.setDescricao(d.getDescricao());
@@ -53,11 +62,11 @@ public class ForumService {
                 dto.setDisciplinaNome(d.getDisciplina().getName());
             }
 
-            List<RespostaDuvida> todasRespostas = respostaRepository.findByDuvidaId(d.getId());
+            List<RespostaDuvida> todasRespostas = respostaDao.findByDuvidaId(d.getId());
             if (todasRespostas != null) {
-                Map<Integer, com.unifor.monitoria.model.RespostaDuvidaDTO> map = new HashMap<>();
+                Map<Integer, RespostaDuvidaDTO> map = new HashMap<>();
                 for (RespostaDuvida r : todasRespostas) {
-                    com.unifor.monitoria.model.RespostaDuvidaDTO rdto = new com.unifor.monitoria.model.RespostaDuvidaDTO();
+                    RespostaDuvidaDTO rdto = new RespostaDuvidaDTO();
                     rdto.setId(r.getId());
                     rdto.setConteudo(r.getConteudo());
                     rdto.setDataResposta(r.getDataResposta());
@@ -70,12 +79,12 @@ public class ForumService {
                     map.put(rdto.getId(), rdto);
                 }
 
-                List<com.unifor.monitoria.model.RespostaDuvidaDTO> roots = new ArrayList<>();
-                for (com.unifor.monitoria.model.RespostaDuvidaDTO r : map.values()) {
+                List<RespostaDuvidaDTO> roots = new ArrayList<>();
+                for (RespostaDuvidaDTO r : map.values()) {
                     if (r.getRespostaPaiId() == null) {
                         roots.add(r);
                     } else {
-                        com.unifor.monitoria.model.RespostaDuvidaDTO pai = map.get(r.getRespostaPaiId());
+                        RespostaDuvidaDTO pai = map.get(r.getRespostaPaiId());
                         if (pai != null) {
                             if (pai.getRespostasFilhas() == null) pai.setRespostasFilhas(new ArrayList<>());
                             pai.getRespostasFilhas().add(r);
@@ -93,8 +102,8 @@ public class ForumService {
 
     @Transactional
     public Duvida criarDuvida(Integer usuarioId, Integer disciplinaId, String titulo, String descricao) {
-        User usuario = userRepository.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
-        Discipline disciplina = disciplineRepository.findById(disciplinaId).orElseThrow(() -> new RuntimeException("Disciplina não encontrada"));
+        User usuario = userDao.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+        Discipline disciplina = disciplineDao.findById(disciplinaId).orElseThrow(() -> new RuntimeException("Disciplina não encontrada"));
 
         Duvida d = new Duvida();
         d.setAluno(usuario);
@@ -102,15 +111,15 @@ public class ForumService {
         d.setTitulo(titulo);
         d.setDescricao(descricao);
 
-        Duvida salva = duvidaRepository.save(d);
+        Duvida salva = duvidaDao.save(d);
         redisTemplate.delete("forum:disciplina:" + disciplinaId);
         return salva;
     }
 
     @Transactional
     public void excluirResposta(Integer respostaId, Integer usuarioId) {
-        RespostaDuvida r = respostaRepository.findById(respostaId).orElseThrow(() -> new RuntimeException("Resposta não encontrada"));
-        User u = userRepository.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+        RespostaDuvida r = respostaDao.findById(respostaId).orElseThrow(() -> new RuntimeException("Resposta não encontrada"));
+        User u = userDao.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
 
         if (!r.getUsuario().getId().equals(usuarioId) && !"ADMIN".equals(u.getRole().name())) {
             throw new RuntimeException("Sem permissão para excluir");
@@ -119,40 +128,40 @@ public class ForumService {
         Integer discId = (r.getDuvida() != null && r.getDuvida().getDisciplina() != null) ? r.getDuvida().getDisciplina().getId() : null;
 
         deletarFilhasRecursivamente(respostaId);
-        respostaRepository.deleteByIdNative(respostaId);
+        respostaDao.deleteByIdNative(respostaId);
 
         if (discId != null) redisTemplate.delete("forum:disciplina:" + discId);
     }
 
     private void deletarFilhasRecursivamente(Integer paiId) {
-        List<RespostaDuvida> filhas = respostaRepository.findByRespostaPaiId(paiId);
+        List<RespostaDuvida> filhas = respostaDao.findByRespostaPaiId(paiId);
         if (filhas != null) {
             for (RespostaDuvida f : filhas) {
                 deletarFilhasRecursivamente(f.getId());
-                respostaRepository.deleteByIdNative(f.getId());
+                respostaDao.deleteByIdNative(f.getId());
             }
         }
     }
 
     @Transactional
     public void excluirDuvida(Integer duvidaId, Integer usuarioId) {
-        Duvida d = duvidaRepository.findById(duvidaId).orElseThrow(() -> new RuntimeException("Dúvida não encontrada"));
-        User u = userRepository.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+        Duvida d = duvidaDao.findById(duvidaId).orElseThrow(() -> new RuntimeException("Dúvida não encontrada"));
+        User u = userDao.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
 
         if (!d.getAluno().getId().equals(usuarioId) && !"ADMIN".equals(u.getRole().name())) {
             throw new RuntimeException("Sem permissão para excluir");
         }
 
         Integer discId = d.getDisciplina().getId();
-        respostaRepository.deleteByDuvidaIdNative(duvidaId);
-        duvidaRepository.delete(d);
+        respostaDao.deleteByDuvidaIdNative(duvidaId);
+        duvidaDao.delete(d);
         redisTemplate.delete("forum:disciplina:" + discId);
     }
 
     @Transactional
     public Duvida editarDuvida(Integer duvidaId, Integer usuarioId, String titulo, String descricao) {
-        Duvida d = duvidaRepository.findById(duvidaId).orElseThrow(() -> new RuntimeException("Dúvida não encontrada"));
-        User u = userRepository.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+        Duvida d = duvidaDao.findById(duvidaId).orElseThrow(() -> new RuntimeException("Dúvida não encontrada"));
+        User u = userDao.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
 
         if (!d.getAluno().getId().equals(usuarioId) && !"ADMIN".equals(u.getRole().name())) {
             throw new RuntimeException("Sem permissão para editar");
@@ -160,50 +169,50 @@ public class ForumService {
 
         d.setTitulo(titulo);
         d.setDescricao(descricao);
-        Duvida salva = duvidaRepository.save(d);
+        Duvida salva = duvidaDao.save(d);
         redisTemplate.delete("forum:disciplina:" + d.getDisciplina().getId());
         return salva;
     }
 
     @Transactional
     public RespostaDuvida responderDuvida(Integer duvidaId, Integer usuarioId, String conteudo, Integer paiId) {
-        Duvida d = duvidaRepository.findById(duvidaId).orElseThrow(() -> new RuntimeException("Dúvida não encontrada"));
-        User u = userRepository.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+        Duvida d = duvidaDao.findById(duvidaId).orElseThrow(() -> new RuntimeException("Dúvida não encontrada"));
+        User u = userDao.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
 
         RespostaDuvida r = new RespostaDuvida();
         r.setDuvida(d);
         r.setUsuario(u);
         r.setConteudo(conteudo);
         if (paiId != null) {
-            RespostaDuvida pai = respostaRepository.findById(paiId).orElseThrow(() -> new RuntimeException("Pai não encontrado"));
+            RespostaDuvida pai = respostaDao.findById(paiId).orElseThrow(() -> new RuntimeException("Pai não encontrado"));
             r.setRespostaPai(pai);
         }
 
-        RespostaDuvida salva = respostaRepository.save(r);
+        RespostaDuvida salva = respostaDao.save(r);
         redisTemplate.delete("forum:disciplina:" + d.getDisciplina().getId());
         return salva;
     }
 
     @Transactional
     public Duvida atualizarStatusDuvida(Integer duvidaId, String status) {
-        Duvida d = duvidaRepository.findById(duvidaId).orElseThrow(() -> new RuntimeException("Dúvida não encontrada"));
+        Duvida d = duvidaDao.findById(duvidaId).orElseThrow(() -> new RuntimeException("Dúvida não encontrada"));
         d.setStatus(Duvida.Status.valueOf(status.toUpperCase()));
-        Duvida salva = duvidaRepository.save(d);
+        Duvida salva = duvidaDao.save(d);
         redisTemplate.delete("forum:disciplina:" + d.getDisciplina().getId());
         return salva;
     }
 
     @Transactional
     public RespostaDuvida editarResposta(Integer respostaId, Integer usuarioId, String conteudo) {
-        RespostaDuvida r = respostaRepository.findById(respostaId).orElseThrow(() -> new RuntimeException("Resposta não encontrada"));
-        User u = userRepository.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+        RespostaDuvida r = respostaDao.findById(respostaId).orElseThrow(() -> new RuntimeException("Resposta não encontrada"));
+        User u = userDao.findById(usuarioId).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
 
         if (!r.getUsuario().getId().equals(usuarioId) && !"ADMIN".equals(u.getRole().name())) {
             throw new RuntimeException("Sem permissão para editar");
         }
 
         r.setConteudo(conteudo);
-        RespostaDuvida salva = respostaRepository.save(r);
+        RespostaDuvida salva = respostaDao.save(r);
         if (r.getDuvida() != null) redisTemplate.delete("forum:disciplina:" + r.getDuvida().getDisciplina().getId());
         return salva;
     }

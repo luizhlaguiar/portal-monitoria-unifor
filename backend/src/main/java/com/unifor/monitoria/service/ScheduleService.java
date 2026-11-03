@@ -1,7 +1,7 @@
 package com.unifor.monitoria.service;
 
 import com.unifor.monitoria.model.MonitoringSession;
-import com.unifor.monitoria.repository.MonitoringSessionRepository;
+import com.unifor.monitoria.dao.MonitoringSessionDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.time.LocalDate;
@@ -11,12 +11,11 @@ import java.util.List;
 @Service
 public class ScheduleService {
     @Autowired
-    private MonitoringSessionRepository repository;
+    private MonitoringSessionDao monitoringSessionDao;
 
     public boolean hasConflict(Long monitorId, LocalDate date, LocalTime start, LocalTime end) {
-        List<MonitoringSession> sessions = repository.findAll();
+        List<MonitoringSession> sessions = monitoringSessionDao.findAll();
         return sessions.stream().anyMatch(s -> {
-            // Precisamos acessar os horários vinculados à sessão de monitoria
             if (s.getSchedules() == null) return false;
 
             return s.getMonitor().getId().equals(monitorId) &&

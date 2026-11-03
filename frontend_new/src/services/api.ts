@@ -1,12 +1,11 @@
+
 import axios from 'axios';
 
-// Configuração base da API
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api', // Porta padrão do Spring Boot
-  timeout: 5000, // Se o servidor não responder em 5s, dispara erro
+  baseURL: 'http://localhost:8080/api',
+  timeout: 5000,
 });
 
-// Interceptor para adicionar o Token de Autenticação em todas as requisições
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -14,6 +13,18 @@ api.interceptors.request.use((config) => {
   }
   return config;
 }, (error) => {
+  return Promise.reject(error);
+});
+
+api.interceptors.response.use((response) => response, (error) => {
+  const status = error.response?.status;
+  const url: string = error.config?.url || '';
+  if (status === 401 && !url.includes('/auth/login')) {
+    localStorage.clear();
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }
   return Promise.reject(error);
 });
 

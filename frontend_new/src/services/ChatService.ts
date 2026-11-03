@@ -4,118 +4,97 @@ import Stomp from 'stompjs';
 export interface ChatMessage {
     type: 'CHAT' | 'JOIN' | 'LEAVE';
     senderId: number;
-    senderName?: string;
     receiverId: number;
-    receiverName?: string;
     content: string;
-    arquivoUrl?: string;
-    timestamp?: string;
     conversationId?: number;
+    disciplineId?: number | null;
+    senderName?: string;
+    receiverName?: string;
 }
 
 class ChatService {
     private stompClient: Stomp.Client | null = null;
-    private socket: SockJS.Transport | null = null;
-    private reconnectTimeout: NodeJS.Timeout | null = null;
-    private isConnecting = false;
+    private socket: any = null;
+    private reconnectTimer: any = null;
+    private onMessage: ((message: ChatMessage) => void) | null = null;
+    private connecting = false;
     private currentUserId: number | null = null;
-    private messageCallback: ((message: ChatMessage) => void) | null = null;
 
-    ensureConnected(userId: number, onMessageReceived: (message: ChatMessage) => void) {
+    connect(userId: number, onMessageReceived: (message: ChatMessage) => void) {
+        if (this.currentUserId !== null && this.currentUserId !== userId) {
+            this.disconnect();
+        }
         this.currentUserId = userId;
-        this.messageCallback = onMessageReceived;
-
-        if (this.stompClient && this.stompClient.connected) {
-            this.subscribeToChannels(userId);
+        this.onMessage = onMessageReceived;
+        if (this.connecting || (this.stompClient && this.stompClient.connected)) {
             return;
         }
-
-        if (this.isConnecting) return;
-        this.isConnecting = true;
+        this.connecting = true;
 
         try {
-            console.log(`[ChatService] Initializing global connection for user ${userId}...`);
             this.socket = new SockJS('http://localhost:8080/ws-chat');
             this.stompClient = Stomp.over(this.socket);
-            this.stompClient.debug = null;
+            this.stompClient.debug = () => {};
+            
 
-            this.stompClient.connect({}, () => {
-                this.isConnecting = false;
-                console.log('[ChatService] WebSocket Connected Successfully');
-                this.subscribeToChannels(userId);
+            const token = localStorage.getItem('token') || '';
+            this.stompClient.connect({ Authorization: `Bearer ${token}` }, () => {
+                this.connecting = false;
+                if (this.reconnectTimer) {
+                    clearTimeout(this.reconnectTimer);
+                    this.reconnectTimer = null;
+                }
+
+                this.stompClient?.subscribe(`/topic/chat.${userId}`, (sdkEvent) => {
+                    try {
+                        this.onMessage?.(JSON.parse(sdkEvent.body));
+                    } catch (e) {
+                        console.error('Error parsing message body:', e);
+                    }
+                });
             }, (error) => {
-                this.isConnecting = false;
-                console.error('[ChatService] WebSocket Connection Error:', error);
-                this.scheduleReconnect();
+                this.connecting = false;
+                console.error('WebSocket Connection Error:', error);
+                this.scheduleReconnect(userId, onMessageReceived);
             });
         } catch (e) {
-            this.isConnecting = false;
-            console.error('[ChatService] Failed to initialize WebSocket:', e);
-            this.scheduleReconnect();
+            this.connecting = false;
+            console.error('Failed to initialize WebSocket:', e);
+            this.scheduleReconnect(userId, onMessageReceived);
         }
     }
 
-    private subscribeToChannels(userId: number) {
-        if (!this.stompClient || !this.stompClient.connected) return;
-
-        // Canal 1: Fila privada (depende de autenticação do Spring)
-        this.stompClient.subscribe(`/user/${userId}/queue/messages`, (sdkEvent) => {
-            this.handleIncomingMessage(sdkEvent);
-        });
-
-        // Canal 2: Tópico público (Garante a entrega instantânea)
-        this.stompClient.subscribe('/topic/messages', (sdkEvent) => {
-            this.handleIncomingMessage(sdkEvent);
-        });
-
-        console.log(`[ChatService] Subscribed to both private and public channels for user ${userId}`);
-    }
-
-    private handleIncomingMessage(sdkEvent: any) {
-        try {
-            const msg = JSON.parse(sdkEvent.body);
-            if (this.messageCallback) {
-                this.messageCallback(msg);
-            }
-        } catch (e) {
-            console.error('[ChatService] Error parsing message body:', e);
+    private scheduleReconnect(userId: number, onMessageReceived: (message: ChatMessage) => void) {
+        if (!this.reconnectTimer) {
+            this.reconnectTimer = setTimeout(() => {
+                this.connect(userId, this.onMessage || onMessageReceived);
+            }, 5000);
         }
-    }
-
-    private scheduleReconnect() {
-        if (this.reconnectTimeout) return;
-        this.reconnectTimeout = setTimeout(() => {
-            this.reconnectTimeout = null;
-            if (this.currentUserId && this.messageCallback) {
-                this.ensureConnected(this.currentUserId, this.messageCallback);
-            }
-        }, 5000);
     }
 
     disconnect() {
+        this.connecting = false;
+        this.currentUserId = null;
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
         if (this.stompClient) {
-            try {
-                if (this.stompClient.connected) this.stompClient.disconnect();
-            } catch (e) {}
+            this.stompClient.disconnect();
             this.stompClient = null;
         }
         if (this.socket) {
-            try { this.socket.close(); } catch (e) {}
+            this.socket.close();
             this.socket = null;
         }
-        if (this.reconnectTimeout) {
-            clearTimeout(this.reconnectTimeout);
-            this.reconnectTimeout = null;
-        }
-        this.currentUserId = null;
-        this.messageCallback = null;
     }
 
     sendMessage(message: ChatMessage) {
         if (this.stompClient && this.stompClient.connected) {
             this.stompClient.send("/app/chat.send", {}, JSON.stringify(message));
         } else {
-            console.error('[ChatService] WebSocket not connected.');
+            console.error('WebSocket not connected. Tentando enviar mesmo assim ou aguardando reconexão...');
+            alert('A conexão com o chat caiu momentaneamente. Aguarde alguns segundos e tente enviar novamente.');
         }
     }
 }

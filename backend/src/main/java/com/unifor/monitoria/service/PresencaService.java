@@ -1,7 +1,7 @@
 package com.unifor.monitoria.service;
 
 import com.unifor.monitoria.model.*;
-import com.unifor.monitoria.repository.*;
+import com.unifor.monitoria.dao.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
@@ -12,25 +12,19 @@ import java.util.stream.Collectors;
 public class PresencaService {
 
     @Autowired
-    private PresencaRepository presencaRepository;
+    private PresencaDao presencaDao;
 
     @Autowired
-    private MatriculaRepository matriculaRepository;
+    private MatriculaDao matriculaDao;
 
     @Autowired
-    private UserRepository userRepository;
+    private UserDao userDao;
 
     public List<User> getAlunosMatriculados(Integer scheduleId) {
-        // 1. Busca o horário para saber a qual disciplina pertence
-        // Como o Schedule tem a MonitoringSession, que tem a Discipline
-        // Precisamos de uma forma de chegar na disciplina.
-        // Vou assumir que temos acesso via Schedule -> MonitoringSession -> Discipline
-        // Para simplificar, vou precisar de um repositório de Schedule para pegar o objeto
-        return null; // Implementarei a lógica completa no Controller ou ajustando o Repository
+        return null;
     }
 
     public Presenca registrarPresenca(Integer scheduleId, Integer userId) {
-        // Lógica simplificada: o controller passará as entidades
         return null;
     }
 }

@@ -20,6 +20,10 @@ public class Conversation {
     @JoinColumn(name = "monitor_id")
     private User monitor;
 
+    @ManyToOne
+    @JoinColumn(name = "disciplina_id")
+    private Discipline discipline;
+
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL)
     @com.fasterxml.jackson.annotation.JsonIgnore
     private List<Message> messages;
@@ -34,6 +38,9 @@ public class Conversation {
 
     public User getMonitor() { return monitor; }
     public void setMonitor(User monitor) { this.monitor = monitor; }
+
+    public Discipline getDiscipline() { return discipline; }
+    public void setDiscipline(Discipline discipline) { this.discipline = discipline; }
 
     public List<Message> getMessages() { return messages; }
     public void setMessages(List<Message> messages) { this.messages = messages; }

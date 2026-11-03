@@ -3,6 +3,7 @@ import { Container, Row, Col, Card, Button, Table, Tabs, Tab, Badge, Modal, Form
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { storageService } from '../services/storageService';
+import { safeUrl } from '../services/safeUrl';
 import ActivityModal from '../components/ActivityModal';
 import Forum from "./Forum";
 import ChatInterface from "./ChatInterface";
@@ -50,6 +51,12 @@ const MonitorDisciplineDetail: React.FC = () => {
   const [schedule, setSchedule] = useState<Schedule[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [conversations, setConversations] = useState<Contact[]>([]);
+  const [scheduleTab, setScheduleTab] = useState('proximas');
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [newSchedule, setNewSchedule] = useState({
@@ -100,7 +107,7 @@ const MonitorDisciplineDetail: React.FC = () => {
   const fetchConversations = async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const res = await api.get(`/chat/conversations/${user.id}`);
+      const res = await api.get(`/chat/conversations/${user.id}?disciplineId=${id}`);
       setConversations(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error('Erro ao carregar conversas do monitor:', error);
@@ -242,7 +249,6 @@ const MonitorDisciplineDetail: React.FC = () => {
         discipline: { id: Number(id) }
       };
 
-      console.log('Tentando salvar atividade...', isEditingActivity ? 'EDITANDO' : 'CRIANDO', activityData);
 
       if (isEditingActivity && activity.id) {
         await api.put(`/activities/${activity.id}`, activityData);
@@ -301,6 +307,11 @@ const MonitorDisciplineDetail: React.FC = () => {
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
+  const startMs = (s: Schedule) => new Date(`${String(s.date).slice(0, 10)}T${s.startTime}`).getTime() || 0;
+  const isPastSchedule = (s: Schedule) => startMs(s) <= now;
+  const upcomingList = (schedule || []).filter(s => !isPastSchedule(s)).sort((a, b) => startMs(a) - startMs(b));
+  const pastList = (schedule || []).filter(isPastSchedule).sort((a, b) => startMs(b) - startMs(a));
+
   return (
     <Container className="py-5">
       <ActivityModal
@@ -327,7 +338,6 @@ const MonitorDisciplineDetail: React.FC = () => {
         <div className="banner-disciplina" style={{ backgroundColor: '#4e73df', height: '120px' }}>
           <div className="banner-overlay"></div>
           <div className="banner-text text-end p-3 text-white fw-bold">
-            <span className="opacity-75 small font-monospace">ID: {id}</span>
             <div className="h4 mb-0">Gestão da Disciplina</div>
           </div>
         </div>
@@ -348,7 +358,7 @@ const MonitorDisciplineDetail: React.FC = () => {
                 <Col key={mon.id} md={6}>
                   <Card className="border-0 shadow-sm p-3 monitor-card-modern">
                     <div className="d-flex align-items-center gap-3">
-                      <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${mon.nome}`} alt={mon.nome} className="rounded-circle" style={{width: '60px', height: '60px', border: '2px solid #eee'}} />
+                      <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=u${mon.id}`} alt={mon.nome} className="rounded-circle" style={{width: '60px', height: '60px', border: '2px solid #eee'}} />
                       <div className="flex-grow-1">
                         <h6 className="fw-bold mb-0">{mon.nome}</h6>
                         <small className="text-muted">{mon.email}</small>
@@ -361,96 +371,80 @@ const MonitorDisciplineDetail: React.FC = () => {
             </Row>
           </div>
         </Tab>
-        <Tab eventKey="horarios" title="Próximos Horários">
+        <Tab eventKey="horarios" title="Horários">
           <div className="p-4 bg-white border rounded shadow-sm">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <h5 className="fw-bold mb-0">Gerenciar Horários de Atendimento</h5>
-              <Button variant="dark" size="sm" onClick={() => setShowScheduleModal(true)}>+ Adicionar Horário</Button>
-            </div>
-            <Table responsive hover className="align-middle">
-              <thead className="bg-light text-muted small">
-                <tr className="text-center">
-                  <th className="border-0">Data</th>
-                  <th className="border-0">Início</th>
-                  <th className="border-0">Fim</th>
-                  <th className="border-0">Sala</th>
-                  <th className="border-0">Monitor Responsável</th>
-                  <th className="border-0 text-center">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="text-center small">
-                {schedule && schedule.filter(item => {
-                  const now = new Date();
-                  const itemDate = new Date(item.date + 'T00:00:00');
-                  if (itemDate > now) return true;
-                  if (itemDate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) return false;
-                  const [startHour, startMin] = item.startTime.split(':').map(Number);
-                  const currentHour = now.getHours();
-                  const currentMin = now.getMinutes();
-                  return startHour > currentHour || (startHour === currentHour && startMin >= currentMin);
-                }).map(item => (
-                  <tr key={item.id} className="border-bottom">
-                    <td className="fw-bold">{item.date}</td>
-                    <td>{item.startTime}</td>
-                    <td>{item.endTime}</td>
-                    <td>{item.room}</td>
-                    <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
-                    <td className="text-center">
-                      <div className="d-flex gap-2 justify-content-center">
-                        <Button variant="outline-primary" size="sm" onClick={() => handleEditClick(item)}>Editar</Button>
-                        <Button variant="outline-danger" size="sm" onClick={() => handleRemoveSchedule(item.id)}>Remover</Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {(!schedule || schedule.filter(s => new Date(s.date) >= new Date()).length === 0) && <tr><td colSpan={6} className="text-center py-3 text-muted">Nenhum horário futuro cadastrado.</td></tr>}
-              </tbody>
-            </Table>
+            <Tabs activeKey={scheduleTab} onSelect={(k) => setScheduleTab(k || 'proximas')} id="monitor-schedule-subtabs" className="mb-3">
+              <Tab eventKey="proximas" title={`Próximas (${upcomingList.length})`}>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5 className="fw-bold mb-0">Gerenciar Horários de Atendimento</h5>
+                  <Button variant="dark" size="sm" onClick={() => setShowScheduleModal(true)}>+ Adicionar Horário</Button>
+                </div>
+                <Table responsive hover className="align-middle">
+                  <thead className="bg-light text-muted small">
+                    <tr className="text-center">
+                      <th className="border-0">Data</th>
+                      <th className="border-0">Início</th>
+                      <th className="border-0">Fim</th>
+                      <th className="border-0">Sala</th>
+                      <th className="border-0">Monitor Responsável</th>
+                      <th className="border-0 text-center">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-center small">
+                    {upcomingList.map(item => (
+                      <tr key={item.id} className="border-bottom">
+                        <td className="fw-bold">{item.date}</td>
+                        <td>{item.startTime}</td>
+                        <td>{item.endTime}</td>
+                        <td>{item.room}</td>
+                        <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
+                        <td className="text-center">
+                          <div className="d-flex gap-2 justify-content-center">
+                            <Button variant="outline-primary" size="sm" onClick={() => handleEditClick(item)}>Editar</Button>
+                            <Button variant="outline-danger" size="sm" onClick={() => handleRemoveSchedule(item.id)}>Remover</Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {upcomingList.length === 0 && <tr><td colSpan={6} className="text-center py-3 text-muted">Nenhum horário futuro cadastrado.</td></tr>}
+                  </tbody>
+                </Table>
+              </Tab>
+              <Tab eventKey="passadas" title={`Passadas (${pastList.length})`}>
+                <Table responsive hover className="align-middle">
+                  <thead className="bg-light text-muted small">
+                    <tr className="text-center">
+                      <th className="border-0">Data</th>
+                      <th className="border-0">Início</th>
+                      <th className="border-0">Fim</th>
+                      <th className="border-0">Sala</th>
+                      <th className="border-0">Monitor Responsável</th>
+                      <th className="border-0 text-center">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-center small">
+                    {pastList.map(item => (
+                      <tr key={item.id} className="border-bottom">
+                        <td className="fw-bold">{item.date}</td>
+                        <td>{item.startTime}</td>
+                        <td>{item.endTime}</td>
+                        <td>{item.room}</td>
+                        <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
+                        <td className="text-center">
+                          <Button variant="outline-success" size="sm" onClick={() => handleOpenAttendance(item.id)}>
+                            Ver Chamada
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                    {pastList.length === 0 && <tr><td colSpan={6} className="text-center py-3 text-muted">Nenhuma monitoria passada encontrada.</td></tr>}
+                  </tbody>
+                </Table>
+              </Tab>
+            </Tabs>
           </div>
         </Tab>
-        <Tab eventKey="passados" title="Monitorias Passadas">
-          <div className="p-4 bg-white border rounded shadow-sm">
-            <Table responsive hover className="align-middle">
-              <thead className="bg-light text-muted small">
-                <tr className="text-center">
-                  <th className="border-0">Data</th>
-                  <th className="border-0">Início</th>
-                  <th className="border-0">Fim</th>
-                  <th className="border-0">Sala</th>
-                  <th className="border-0">Monitor Responsável</th>
-                  <th className="border-0 text-center">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="text-center small">
-                {schedule && schedule.filter(item => {
-                  const now = new Date();
-                  const itemDate = new Date(item.date + 'T00:00:00');
-                  if (itemDate > now) return false;
-                  if (itemDate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) return true;
-                  const [startHour, startMin] = item.startTime.split(':').map(Number);
-                  const currentHour = now.getHours();
-                  const currentMin = now.getMinutes();
-                  return startHour < currentHour || (startHour === currentHour && startMin < currentMin);
-                }).map(item => (
-                  <tr key={item.id} className="border-bottom">
-                    <td className="fw-bold">{item.date}</td>
-                    <td>{item.startTime}</td>
-                    <td>{item.endTime}</td>
-                    <td>{item.room}</td>
-                    <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
-                    <td className="text-center">
-                      <Button variant="outline-success" size="sm" onClick={() => handleOpenAttendance(item.id)}>
-                        Ver Chamada
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-                {(!schedule || schedule.filter(s => new Date(s.date) < new Date()).length === 0) && <tr><td colSpan={6} className="text-center py-3 text-muted">Nenhuma monitoria passada encontrada.</td></tr>}
-              </tbody>
-            </Table>
-          </div>
-        </Tab>
-        <Tab eventKey="atividades" title="Atividades">
+<Tab eventKey="atividades" title="Atividades">
           <div className="p-4 bg-white border rounded shadow-sm">
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h5 className="fw-bold mb-0">Gerenciar Atividades de Fixação</h5>
@@ -477,7 +471,7 @@ const MonitorDisciplineDetail: React.FC = () => {
                     <p className="small text-muted mt-2">{act.descricao}</p>
                     {(act as any).arquivoUrl && (
                       <div className="mt-2">
-                        <a href={(act as any).arquivoUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2">
+                        <a href={safeUrl((act as any).arquivoUrl)} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2">
                           <i className="bi bi-file-earmark-text"></i> Ver Anexo
                         </a>
                       </div>
@@ -494,18 +488,12 @@ const MonitorDisciplineDetail: React.FC = () => {
         </Tab>
         <Tab eventKey="mensagens" title="Mensagens">
           <div className="p-4 bg-white border rounded shadow-sm">
-            {conversations && conversations.length > 0 ? (
-              <ChatInterface
-                contacts={conversations}
-                currentUserId={user.id}
-              />
-            ) : (
-              <div className="text-center py-5">
-                <img src="https://cdn-icons-png.flaticon.com/512/5968/5968771.png" alt="Chat" style={{width: '100px', opacity: 0.5}} className="mb-3" />
-                <h5 className="fw-bold">Nenhuma conversa ativa</h5>
-                <p className="text-muted">Quando um aluno enviar uma mensagem, ela aparecerá aqui.</p>
-              </div>
-            )}
+            <ChatInterface
+              key={`chat-${user.id}-${id}`}
+              contacts={conversations}
+              currentUserId={user.id}
+              disciplineId={parseInt(id || "0")}
+            />
           </div>
         </Tab>
       </Tabs>

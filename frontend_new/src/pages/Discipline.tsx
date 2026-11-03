@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Table, Tabs, Tab, Badge, Modal, Form } from 'react-bootstrap';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { safeUrl } from '../services/safeUrl';
 import Forum from './Forum';
 import ChatInterface from './ChatInterface';
 import './Discipline.css';
@@ -38,6 +39,12 @@ const Discipline: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('monitores');
+  const [scheduleTab, setScheduleTab] = useState('proximas');
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -48,7 +55,6 @@ const Discipline: React.FC = () => {
 
   useEffect(() => {
     const fetchAllData = async () => {
-      // Fetch Discipline Name
       try {
         const discRes = await api.get(`/disciplines/${id}`);
         setDisciplineName(discRes.data.name);
@@ -57,7 +63,6 @@ const Discipline: React.FC = () => {
         setDisciplineName('Disciplina não encontrada');
       }
 
-      // Fetch Monitors
       try {
         const monRes = await api.get(`/disciplines/${id}/monitors`);
         setMonitors(monRes.data);
@@ -65,7 +70,6 @@ const Discipline: React.FC = () => {
         console.error('Erro ao carregar monitores:', error);
       }
 
-      // Fetch Schedules
       try {
         const schRes = await api.get(`/disciplines/${id}/schedules`);
         setSchedules(schRes.data);
@@ -73,7 +77,6 @@ const Discipline: React.FC = () => {
         console.error('Erro ao carregar horários:', error);
       }
 
-      // Fetch Activities
       try {
         const actRes = await api.get(`/disciplines/${id}/activities`);
         setActivities(actRes.data);
@@ -94,13 +97,15 @@ const Discipline: React.FC = () => {
     try {
       await api.put(`/schedules/${editingSchedule.id}`, editingSchedule);
       setShowEditScheduleModal(false);
-      // Refresh schedules
       const schRes = await api.get(`/disciplines/${id}/schedules`);
       setSchedules(schRes.data);
     } catch (error) {
       alert('Erro ao atualizar horário');
     }
   };
+
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const canManageSchedules = schedules.some(s => s.monitoringSession?.monitor?.id === currentUser.id);
 
   const handleDeleteSchedule = async (id: number) => {
     if (!window.confirm('Deseja excluir este horário?')) return;
@@ -111,6 +116,54 @@ const Discipline: React.FC = () => {
       alert('Erro ao excluir horário');
     }
   };
+
+  const todayStr = new Date().toLocaleDateString('sv-SE');
+  const isPast = (s: Schedule) => {
+    const start = startMs(s);
+    return start ? start <= now : String(s.date).slice(0, 10) < todayStr;
+  };
+  const startMs = (s: Schedule) => new Date(`${String(s.date).slice(0, 10)}T${s.startTime}`).getTime() || 0;
+  const upcomingList = schedules.filter(s => !isPast(s)).sort((a, b) => startMs(a) - startMs(b));
+  const pastList = schedules.filter(isPast).sort((a, b) => startMs(b) - startMs(a));
+
+  const renderScheduleTable = (list: Schedule[], emptyText: string) => (
+    <Table responsive hover className="align-middle">
+      <thead className="bg-light text-muted small">
+        <tr className="text-center">
+          <th className="border-0">Data</th>
+          <th className="border-0">Horário</th>
+          <th className="border-0">Sala</th>
+          <th className="border-0">Monitor Responsável</th>
+          {canManageSchedules && <th className="border-0 text-center">Ação</th>}
+        </tr>
+      </thead>
+      <tbody className="text-center small">
+        {list.map(item => {
+          const isAuthor = item.monitoringSession?.monitor?.id === currentUser.id;
+
+          return (
+            <tr key={item.id} className="border-bottom">
+              <td>{item.date}</td>
+              <td>{item.startTime} - {item.endTime}</td>
+              <td>{item.room}</td>
+              <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
+              {canManageSchedules && (
+                <td className="text-center">
+                  {isAuthor && (
+                    <div className="d-flex gap-2 justify-content-center">
+                      <Button variant="outline-primary" size="sm" onClick={() => handleEditClick(item)}>Editar</Button>
+                      <Button variant="outline-danger" size="sm" onClick={() => handleDeleteSchedule(item.id)}>Excluir</Button>
+                    </div>
+                  )}
+                </td>
+              )}
+            </tr>
+          );
+        })}
+        {list.length === 0 && <tr><td colSpan={canManageSchedules ? 5 : 4} className="text-center py-3 text-muted">{emptyText}</td></tr>}
+      </tbody>
+    </Table>
+  );
 
   return (
     <Container className="py-5">
@@ -125,7 +178,6 @@ const Discipline: React.FC = () => {
         <div className="banner-disciplina" style={{ backgroundColor: '#4e73df', height: '120px' }}>
           <div className="banner-overlay"></div>
           <div className="banner-text text-end p-3 text-white fw-bold">
-            <span className="opacity-75 small font-monospace">ID: {id}</span>
             <div className="h4 mb-0">{disciplineName}</div>
           </div>
         </div>
@@ -146,7 +198,7 @@ const Discipline: React.FC = () => {
                 <Col key={mon.id} md={6}>
                   <Card className="border-0 shadow-sm p-3 monitor-card-modern">
                     <div className="d-flex align-items-center gap-3">
-                      <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${mon.nome}`} alt={mon.nome} className="rounded-circle" style={{width: '60px', height: '60px', border: '2px solid #eee'}} />
+                      <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=u${mon.id}`} alt={mon.nome} className="rounded-circle" style={{width: '60px', height: '60px', border: '2px solid #eee'}} />
                       <div className="flex-grow-1">
                         <h6 className="fw-bold mb-0">{mon.nome}</h6>
                         <small className="text-muted">{mon.email}</small>
@@ -163,47 +215,18 @@ const Discipline: React.FC = () => {
 
         <Tab eventKey="horarios" title="Horários">
           <div className="p-4 bg-white border rounded shadow-sm">
-            <Table responsive hover className="align-middle">
-              <thead className="bg-light text-muted small">
-                <tr className="text-center">
-                  <th className="border-0">Data</th>
-                  <th className="border-0">Horário</th>
-                  <th className="border-0">Sala</th>
-                  <th className="border-0">Monitor Responsável</th>
-                  <th className="border-0 text-center">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="text-center small">
-                {schedules.map(item => {
-                  const user = JSON.parse(localStorage.getItem('user') || '{}');
-                  const isAuthor = item.monitoringSession?.monitor?.id === user.id;
-
-                  return (
-                    <tr key={item.id} className="border-bottom">
-                      <td>{item.date}</td>
-                      <td>{item.startTime} - {item.endTime}</td>
-                      <td>{item.room}</td>
-                      <td className="fw-bold text-primary">{item.monitoringSession?.monitor?.nome || 'Não informado'}</td>
-                      <td className="text-center">
-                        {isAuthor ? (
-                          <div className="d-flex gap-2 justify-content-center">
-                            <Button variant="outline-primary" size="sm" onClick={() => handleEditClick(item)}>Editar</Button>
-                            <Button variant="outline-danger" size="sm" onClick={() => handleDeleteSchedule(item.id)}>Excluir</Button>
-                          </div>
-                        ) : (
-                          <Button variant="dark" size="sm">Agendar</Button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {schedules.length === 0 && <tr><td colSpan={5} className="text-center py-3 text-muted">Nenhum horário cadastrado.</td></tr>}
-              </tbody>
-            </Table>
+            <Tabs activeKey={scheduleTab} onSelect={(k) => setScheduleTab(k || 'proximas')} id="schedule-subtabs" className="mb-3">
+              <Tab eventKey="proximas" title={`Próximas (${upcomingList.length})`}>
+                {renderScheduleTable(upcomingList, 'Nenhuma monitoria agendada.')}
+              </Tab>
+              <Tab eventKey="passadas" title={`Passadas (${pastList.length})`}>
+                {renderScheduleTable(pastList, 'Nenhuma monitoria passada.')}
+              </Tab>
+            </Tabs>
           </div>
         </Tab>
 
-        <Tab eventKey="atividades" title="Atividades">
+<Tab eventKey="atividades" title="Atividades">
           <div className="p-4 bg-white border rounded shadow-sm">
             <Row className="g-3">
               {activities.map(act => (
@@ -221,7 +244,7 @@ const Discipline: React.FC = () => {
                     <p className="small text-muted mt-2">{act.descricao}</p>
                     {act.arquivoUrl && (
                       <div className="mt-2">
-                        <a href={act.arquivoUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2">
+                        <a href={safeUrl(act.arquivoUrl)} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2">
                           <i className="bi bi-file-earmark-text"></i> Ver Anexo
                         </a>
                       </div>
@@ -244,7 +267,13 @@ const Discipline: React.FC = () => {
           <div className="p-4 bg-white border rounded shadow-sm">
             {(() => {
               const user = JSON.parse(localStorage.getItem('user') || '{}');
-              return <ChatInterface contacts={monitors} currentUserId={user.id} />;
+              const firstMonitor = monitors?.[0];
+              return <ChatInterface key={`chat-${user.id}-${id}`}
+                contacts={monitors}
+                currentUserId={user.id}
+                selectedContact={firstMonitor}
+                disciplineId={parseInt(id || "0")}
+              />;
             })()}
           </div>
         </Tab>

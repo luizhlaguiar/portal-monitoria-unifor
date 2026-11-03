@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -7,16 +7,44 @@ import MonitorDashboard from './pages/MonitorDashboard';
 import MonitorDisciplineDetail from './pages/MonitorDisciplineDetail';
 import ManageDiscipline from './pages/ManageDiscipline';
 import Messages from './pages/Messages';
+import api from './services/api';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './styles/index.css';
 
-const App: React.FC = () => {
-  // Função simples para proteger rotas
-  const PrivateRoute = ({ children }: { children: JSX.Element }) => {
-    const user = localStorage.getItem('user');
-    return user ? children : <Navigate to="/login" />;
-  };
+const PrivateRoute = ({ children }: { children: JSX.Element }) => {
+  const [status, setStatus] = useState<'checking' | 'ok' | 'denied'>('checking');
 
+  useEffect(() => {
+    let active = true;
+    if (!localStorage.getItem('token') || !localStorage.getItem('user')) {
+      setStatus('denied');
+      return;
+    }
+    api.get('/auth/me')
+      .then((res) => {
+        if (!active) return;
+        const me = res.data;
+        const role = String(me.role).toUpperCase();
+        const stored = JSON.parse(localStorage.getItem('user') || '{}');
+        localStorage.setItem('user', JSON.stringify({ ...stored, id: me.id, nome: me.nome, role }));
+        localStorage.setItem('role', role);
+        setStatus('ok');
+      })
+      .catch((err) => {
+        if (!active) return;
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          localStorage.clear();
+        }
+        setStatus('denied');
+      });
+    return () => { active = false; };
+  }, []);
+
+  if (status === 'checking') return null;
+  return status === 'ok' ? children : <Navigate to="/login" />;
+};
+
+const App: React.FC = () => {
   return (
     <Router>
       <Routes>

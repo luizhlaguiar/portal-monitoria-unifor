@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Badge, Modal, Form, ListGroup } from 'react-bootstrap';
 import api from '../services/api';
 import { storageService } from '../services/storageService';
+import { safeUrl } from '../services/safeUrl';
 import './Forum.css';
 
 interface Duvida {
@@ -28,15 +29,14 @@ interface Resposta {
   anexos?: string[];
 }
 
-// Componente para renderizar a galeria de fotos de um anexo
 const AnexoGallery: React.FC<{ anexos: string[], onRemove?: (id: number) => void }> = ({ anexos, onRemove }) => {
   if (!anexos || anexos.length === 0) return null;
   return (
     <div className="d-flex flex-wrap gap-2 mt-2">
       {anexos.map((url, idx) => (
         <div key={idx} className="position-relative">
-          <a href={url} target="_blank" rel="noopener noreferrer">
-            <img src={url} alt="Anexo" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ddd' }} />
+          <a href={safeUrl(url)} target="_blank" rel="noopener noreferrer">
+            <img src={safeUrl(url)} alt="Anexo" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ddd' }} />
           </a>
         </div>
       ))}
@@ -310,7 +310,6 @@ const Forum: React.FC<{ disciplineId: string }> = ({ disciplineId }) => {
         setIsUploading(true);
         const url = await storageService.uploadFile(editingDuvidaArquivo, 'forum');
 
-        // Busca o anexo atual para atualizar, ou cria um novo se não existir
         const anexosRes = await api.get(`/forum/anexos/${selectedDuvida.id}/DUVIDA`);
         if (anexosRes.data && anexosRes.data.length > 0) {
           await api.put(`/forum/anexo/${anexosRes.data[0].id}`, { url });

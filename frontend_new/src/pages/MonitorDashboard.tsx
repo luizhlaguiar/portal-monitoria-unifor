@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Navbar, Nav, ProgressBar, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Navbar, Nav, Spinner } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import './Dashboard.css';
@@ -9,9 +9,19 @@ interface MonitorDiscipline {
   name: string;
   code: string;
   studentCount?: number;
+  doubtCount?: number;
+  heldMinutes?: number;
+  attendeeIds?: number[];
+  nextSession?: string | null;
   color?: string;
 }
 
+const formatHours = (minutes: number | null) => {
+  if (minutes === null) return '–';
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
+};
 const MonitorDashboard: React.FC = () => {
   const [disciplines, setDisciplines] = useState<MonitorDiscipline[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,16 +32,68 @@ const MonitorDashboard: React.FC = () => {
     const fetchDisciplines = async () => {
       try {
         setLoading(true);
-        // Busca as disciplinas que este monitor especificamente monitora
         const response = await api.get(`/disciplines/monitor/${user.id}`);
+        const list: any[] = Array.isArray(response.data) ? response.data : [];
 
         const colors = ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796'];
-        const dataWithColors = response.data.map((d: any, index: number) => ({
-          ...d,
-          color: colors[index % colors.length],
-          studentCount: Math.floor(Math.random() * 100) + 10 // Simulando contagem de alunos
-        }));
+        const now = Date.now();
+        const dayOf = (s: any) => String(s.date).slice(0, 10);
+        const startMs = (s: any) => new Date(`${dayOf(s)}T${s.startTime}`).getTime() || 0;
+        const minutesOf = (s: any) => {
+          const diff = (new Date(`${dayOf(s)}T${s.endTime}`).getTime() - startMs(s)) / 60000;
+          return diff > 0 ? diff : 0;
+        };
 
+        const dataWithColors: MonitorDiscipline[] = await Promise.all(
+          list.map(async (d: any, index: number) => {
+            const item: MonitorDiscipline = { ...d, color: colors[index % colors.length] };
+
+            try {
+              const r = await api.get(`/chat/students/${d.id}`);
+              item.studentCount = Array.isArray(r.data) ? r.data.length : 0;
+            } catch (error) {
+              console.error(`Erro ao carregar alunos da disciplina ${d.id}:`, error);
+            }
+
+            try {
+              const r = await api.get(`/forum/${d.id}`);
+              item.doubtCount = Array.isArray(r.data) ? r.data.length : 0;
+            } catch (error) {
+              console.error(`Erro ao carregar dúvidas da disciplina ${d.id}:`, error);
+            }
+
+            try {
+              const r = await api.get(`/disciplines/${d.id}/schedules`);
+              const mine = (Array.isArray(r.data) ? r.data : []).filter(
+                (s: any) => s.monitoringSession?.monitor?.id === user.id
+              );
+              const held = mine.filter((s: any) => startMs(s) <= now);
+              const upcoming = mine
+                .filter((s: any) => startMs(s) > now)
+                .sort((a: any, b: any) => startMs(a) - startMs(b));
+
+              item.heldMinutes = held.reduce((acc: number, s: any) => acc + minutesOf(s), 0);
+              item.nextSession = upcoming.length
+                ? new Date(startMs(upcoming[0])).toLocaleString('pt-BR', {
+                    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+                  })
+                : null;
+
+              const presencas = await Promise.all(held.map((s: any) => api.get(`/presencas/horario/${s.id}`)));
+              const ids = new Set<number>();
+              presencas.forEach(res =>
+                (Array.isArray(res.data) ? res.data : []).forEach((p: any) => {
+                  if (p.user?.id != null) ids.add(p.user.id);
+                })
+              );
+              item.attendeeIds = Array.from(ids);
+            } catch (error) {
+              console.error(`Erro ao carregar monitorias da disciplina ${d.id}:`, error);
+            }
+
+            return item;
+          })
+        );
         setDisciplines(dataWithColors);
       } catch (error) {
         console.error('Erro ao carregar disciplinas do monitor:', error);
@@ -46,6 +108,17 @@ const MonitorDashboard: React.FC = () => {
       setLoading(false);
     }
   }, [user.id]);
+
+  const known = <T,>(pick: (d: MonitorDiscipline) => T | undefined): T[] | null => {
+    const values = disciplines.map(pick);
+    return values.some(v => v === undefined) ? null : (values as T[]);
+  };
+  const minutesList = known(d => d.heldMinutes);
+  const minutesTotal = minutesList ? minutesList.reduce((a, b) => a + b, 0) : null;
+  const doubtList = known(d => d.doubtCount);
+  const doubtsTotal = doubtList ? doubtList.reduce((a, b) => a + b, 0) : null;
+  const attendeeLists = known(d => d.attendeeIds);
+  const attendeesTotal = attendeeLists ? new Set(attendeeLists.flat()).size : null;
 
   return (
     <div className="dashboard-layout">
@@ -80,15 +153,15 @@ const MonitorDashboard: React.FC = () => {
           <section className="stats-grid mb-5">
             <div className="stat-card shadow-sm p-4 bg-white rounded border-start border-warning border-4 text-center">
               <span className="stat-label text-muted small fw-bold">ALUNOS ATENDIDOS</span>
-              <span className="stat-value h2 fw-bold">128</span>
+              <span className="stat-value h2 fw-bold">{loading ? '…' : attendeesTotal ?? '–'}</span>
             </div>
             <div className="stat-card shadow-sm p-4 bg-white rounded border-start border-primary border-4 text-center">
               <span className="stat-label text-muted small fw-bold">HORAS DE MONITORIA</span>
-              <span className="stat-value h2 fw-bold">42h</span>
+              <span className="stat-value h2 fw-bold">{loading ? '…' : formatHours(minutesTotal)}</span>
             </div>
             <div className="stat-card shadow-sm p-4 bg-white rounded border-start border-danger border-4 text-center">
-              <span className="stat-label text-muted small fw-bold">DÚVIDAS PENDENTES</span>
-              <span className="stat-value h2 fw-bold">12</span>
+              <span className="stat-label text-muted small fw-bold">DÚVIDAS NO FÓRUM</span>
+              <span className="stat-value h2 fw-bold">{loading ? '…' : doubtsTotal ?? '–'}</span>
             </div>
           </section>
 
@@ -110,25 +183,27 @@ const MonitorDashboard: React.FC = () => {
                       <Card className="h-100 border-0 shadow-sm overflow-hidden discipline-card-modern">
                         <div className="banner-disciplina" style={{ backgroundColor: disc.color, height: '80px' }}>
                            <div className="banner-overlay"></div>
-                           <div className="banner-text text-end p-3 text-white fw-bold small">
-                             {disc.code}
-                           </div>
                         </div>
                         <Card.Body className="p-4">
                           <div className="mb-3">
                             <h5 className="fw-bold mb-1">{disc.name}</h5>
                           </div>
-                          <div className="mb-4">
-                            <div className="d-flex justify-content-between small text-muted mb-1">
-                              <span>Alunos Matriculados</span>
-                              <span>{disc.studentCount}</span>
+                          <div className="small text-muted mb-4">
+                            <div className="d-flex justify-content-between mb-1">
+                              <span>Alunos matriculados</span>
+                              <span className="fw-bold text-dark">{disc.studentCount ?? '–'}</span>
                             </div>
-                            <ProgressBar now={Math.min(disc.studentCount || 0, 100)} variant="dark" style={{ height: '6px' }} className="mb-2" />
-                          </div>
-                          <div className="text-muted small mb-4">
-                            Gerenciar suporte e dúvidas
-                          </div>
-                          <div className="d-grid gap-2">
+                            <div className="d-flex justify-content-between mb-1">
+                              <span>Dúvidas no fórum</span>
+                              <span className="fw-bold text-dark">{disc.doubtCount ?? '–'}</span>
+                            </div>
+                            <div className="d-flex justify-content-between">
+                              <span>Sua próxima monitoria</span>
+                              <span className="fw-bold text-dark">
+                                {disc.nextSession === undefined ? '–' : disc.nextSession || 'Nenhuma agendada'}
+                              </span>
+                            </div>
+                          </div>                          <div className="d-grid gap-2">
                             <Button
                               variant="dark"
                               className="w-100 btn-sm py-2 fw-bold"
