@@ -1,0 +1,83 @@
+# Producao: MySQL + Redis + backend + front (Caddy com HTTPS automatico).
+# Uso no servidor (veja DEPLOY.md):
+#   cp .env.prod.example .env   (e preencha)
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Somente o container "web" publica portas (80 e 443). O resto fica na rede interna.
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?defina MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: portal_monitoria
+      MYSQL_USER: monitoria
+      MYSQL_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?defina REDIS_PASSWORD}
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://db:3306/portal_monitoria?allowPublicKeyRetrieval=true
+      DB_USERNAME: monitoria
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (minimo 32 caracteres)}
+      ALLOWED_ORIGIN: https://${DOMAIN:?defina DOMAIN}
+      DDL_AUTO: ${DDL_AUTO:-update}
+      SHOW_SQL: "false"
+      JAVA_OPTS: ${JAVA_OPTS:--Xmx512m}
+    expose:
+      - "8080"
+
+  web:
+    build:
+      context: ./frontend_new
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  mysql_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

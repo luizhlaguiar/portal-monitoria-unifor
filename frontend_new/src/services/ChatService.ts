@@ -1,5 +1,8 @@
 import SockJS from 'sockjs-client';
 import Stomp from 'stompjs';
+import { API_URL } from './api';
+
+const WS_URL = API_URL.replace(/\/api\/?$/, '') + '/ws-chat';
 
 export interface ChatMessage {
     type: 'CHAT' | 'JOIN' | 'LEAVE';
@@ -32,7 +35,7 @@ class ChatService {
         this.connecting = true;
 
         try {
-            this.socket = new SockJS('http://localhost:8080/ws-chat');
+            this.socket = new SockJS(WS_URL);
             this.stompClient = Stomp.over(this.socket);
             this.stompClient.debug = () => {};
             
