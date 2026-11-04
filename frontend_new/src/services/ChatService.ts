@@ -35,7 +35,8 @@ class ChatService {
         this.connecting = true;
 
         try {
-            this.socket = new SockJS(WS_URL);
+            // Via proxy do Vercel (URL relativa) nao ha WebSocket; usa so HTTP long-polling, que passa por proxies.
+            this.socket = new SockJS(WS_URL, undefined, WS_URL.startsWith('/') ? { transports: ['xhr-polling'] } : undefined);
             this.stompClient = Stomp.over(this.socket);
             this.stompClient.debug = () => {};
             

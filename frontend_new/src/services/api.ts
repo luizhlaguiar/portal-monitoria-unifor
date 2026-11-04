@@ -1,11 +1,15 @@
 
 import axios from 'axios';
 
-export const API_URL: string = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+// Em producao o navegador fala so com o proprio dominio (o Vercel repassa /api ao backend),
+// o que evita bloqueios de firewall/proxy em redes como a da faculdade.
+export const API_URL: string = import.meta.env.PROD
+  ? '/api'
+  : (import.meta.env.VITE_API_URL || 'http://localhost:8080/api');
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 5000,
+  timeout: 20000,
 });
 
 api.interceptors.request.use((config) => {
